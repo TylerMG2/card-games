@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
  * General Events
  */
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
-pub enum ServerEvent<EventType: ToFromBytes> {
+pub enum ServerEvent<EventType> {
     RoomJoined { room: u8 },
     PlayerJoined { player: u8, player_index: u8 },
     PlayerLeft { player_index: u8 },
@@ -18,7 +18,7 @@ pub enum ServerEvent<EventType: ToFromBytes> {
 }
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
-pub enum ClientEvent<T: ToFromBytes> {
+pub enum ClientEvent<T> {
     JoinRoom { room: u8 },
     LeaveRoom,
     StartGame,

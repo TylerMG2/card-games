@@ -1,11 +1,11 @@
-use events::ServerEvent;
+use events::{ServerEvent, ToFromBytes, TycoonServerEvent};
 
 mod types;
 mod events;
 mod games;
+mod traits;
 
 pub fn add(left: u64, right: u64) -> u64 {
-    ServerEvent::RoomJoined { room: 1 };
     left + right
 }
 
