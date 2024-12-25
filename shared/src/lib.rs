@@ -1,9 +1,13 @@
-use events::{ServerEvent, ToFromBytes, TycoonServerEvent};
-
 mod types;
-mod events;
-mod games;
 mod traits;
+mod logic;
+
+pub mod games {
+    mod games;
+
+    pub use games::get_logic;
+    pub mod tycoon;
+}
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

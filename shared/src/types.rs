@@ -1,18 +1,38 @@
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{events::{ServerEvent, ToFromBytes}, traits::{GameLogic, Player}};
+use crate::{games::get_logic, traits::{GameLogic, Networked, ToFromBytes}};
 
+#[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub enum GameType {
+
+    #[default]
     Tycoon,
     Carbo,
-    Default,
 }
 
-pub struct ClientRoom<RoomType: Default + Copy, PlayerType: Player + Default + Copy> {
-    pub players: [Option<PlayerType>; 8], // TODO: Move to a constant
+//
+// Players
+//
+#[derive(Deserialize, Serialize, Clone, Copy)]
+pub struct ClientPlayer<PlayerType> {
+    pub name: [u8; 20], // TODO: Move to a constant
+    pub disconnected: bool,
+    pub player: PlayerType,
+}
+
+
+//
+// Rooms
+//
+
+#[derive(Deserialize, Serialize, Clone, Copy)]
+pub struct ClientRoom<RoomType, PlayerType> {
+    pub players: [Option<ClientPlayer<PlayerType>>; 8], // TODO: Move to a constant
     pub host: u8,
     pub game: GameType,
     pub room: RoomType,
+    pub current_player: Option<u8>, // This isn't used by the server, only needed by the client
 }
 
 pub struct ServerRoom<Logic: GameLogic> {
@@ -26,66 +46,78 @@ pub struct Connection {
     pub sender: Option<UnboundedSender<Vec<u8>>>,
 }
 
-impl<Logic> ServerRoom<Logic>
-where
-    Logic: GameLogic,
-{
-    pub fn new(logic: Logic) -> Self {
-        Self {
-            connections: [const { None }; 8],
-            client_room: ClientRoom {
-                players: [None; 8],
-                host: 0,
-                game: GameType::Default,
-                room: Logic::Room::default(),
-            },
-            logic,
-        }
-    }
+//
+// Events
+//
 
-    pub fn send_to_all(&mut self, event: &ServerEvent<Logic::GameServerEvent>) {
-        handle_server_event(self, event, None);
+#[derive(Default, Serialize, Deserialize, Clone)]
+pub enum ServerEvent<Logic: GameLogic> {
+    RoomJoined { room: ClientRoom<Logic::Room, Logic::Player>, current_player: u8 },
+    PlayerJoined { player: ClientPlayer<Logic::Player>, player_index: u8 },
+    PlayerLeft { player_index: u8 },
+    PlayerDisconnected { player_index: u8 },
+    PlayerReconnected { player_index: u8 },
+    HostChanged { player_index: u8 },
+    GameChanged { game: GameType },
+    GameEvent(Logic::GameServerEvent),
 
-        for connection in self.connections.iter() {
-            if let Some(connection) = connection {
-                if let Some(sender) = &connection.sender {
-                    sender.send(event.to_bytes()).unwrap(); // TODO: Handle send error
-                }
-            }
-        }
-    }
+    #[default]
+    Unknown,
+}
 
-    pub fn send_except(&mut self, event: &ServerEvent<Logic::GameServerEvent>, except: usize) {
-        handle_server_event(self, event, None);
+#[derive(Default, Serialize, Deserialize, Clone)]
+pub enum ClientEvent<T> {
+    JoinRoom { name: [u8; 20] }, // TODO: Move to a constant
+    LeaveRoom,
+    StartGame,
+    ChangeGame { game: GameType },
+    GameEvent(T),
 
-        for (index, connection) in self.connections.iter().enumerate() {
-            if index != except {
-                if let Some(connection) = connection {
-                    if let Some(sender) = &connection.sender {
-                        sender.send(event.to_bytes()).unwrap();
-                    }
-                }
-            }
-        }
-    }
+    #[default]
+    Unknown,
+}
 
-    pub fn send_to(&mut self, event: &ServerEvent<Logic::GameServerEvent>, to: usize) {
-        handle_server_event(self, event, Some(to));
+fn new_server_room(game_type: GameType) -> ServerRoom<impl GameLogic> {
+    let logic = get_logic(game_type);
 
-        if let Some(connection) = self.connections[to].as_ref() {
-            if let Some(sender) = &connection.sender {
-                sender.send(event.to_bytes()).unwrap();
-            }
-        }
+    ServerRoom {
+        connections: [const { None }; 8],
+        client_room: ClientRoom {
+            players: [None; 8],
+            host: 0,
+            game: game_type,
+            room: logic.default_room(),
+            current_player: None,
+        },
+        logic,
     }
 }
 
-fn handle_server_event<Logic: GameLogic>(room: &mut ServerRoom<Logic>, event: &ServerEvent<Logic::GameServerEvent>, player_index: Option<usize>) {
-    match event {
-        ServerEvent::GameEvent(event) => {
-            room.logic.handle_server_event(&event, &mut room.client_room.room, &mut room.client_room.players, player_index);
+// Take ownership of the room (to avoid reuse) and return a new room with the updated game type
+fn switch_game_mode(room: ServerRoom<impl GameLogic>, game: GameType) -> ServerRoom<impl GameLogic> {
+    let logic = get_logic(game);
+
+    // Create new players array replacing the player field with the default player of the new logic type
+    let mut players = [None; 8];
+    for (index, player) in room.client_room.players.iter().enumerate() {
+        if let Some(player) = player {
+            players[index] = Some(ClientPlayer {
+                name: player.name,
+                disconnected: player.disconnected,
+                player: logic.default_player(),
+            });
+        }
+    }
+
+    ServerRoom {
+        connections: room.connections,
+        client_room: ClientRoom {
+            players,
+            host: room.client_room.host,
+            game,
+            room: logic.default_room(),
+            current_player: room.client_room.current_player,
         },
-        ServerEvent::Unknown => panic!("Should never send a ServerEvent::Unknown"), 
-        _ => {}, // TODO: Implement normal event handling
+        logic,
     }
 }
