@@ -1,7 +1,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{games::get_logic, traits::{GameLogic, Networked, ToFromBytes}};
+use crate::{games::get_logic, traits::{GameLogic, ToFromBytes}};
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub enum GameType {
@@ -69,7 +69,6 @@ pub enum ServerEvent<Logic: GameLogic> {
 pub enum ClientEvent<T> {
     JoinRoom { name: [u8; 20] }, // TODO: Move to a constant
     LeaveRoom,
-    StartGame,
     ChangeGame { game: GameType },
     GameEvent(T),
 

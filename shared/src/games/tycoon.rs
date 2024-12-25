@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{traits::{Networked, GameLogic}, types::ServerRoom};
+use crate::{traits::GameLogic, types::ServerRoom};
 
 pub struct TycoonLogic {
 }
@@ -51,7 +51,7 @@ impl GameLogic for TycoonLogic {
     type Room = TycoonRoom;
     type Player = TycoonPlayer;
 
-    fn validate_event(&self, event: &Self::GameClientEvent, room: &Self::Room, players: &[Option<Self::Player>; 8], player_index: usize) -> bool {
+    fn validate_client_game_event(&self, event: &Self::GameClientEvent, room: &Self::Room, players: &[Option<&Self::Player>; 8], player_index: usize) -> bool {
         match event {
             TycoonClientEvent::StartGame => {
                 let num_players = players.iter().filter(|player| player.is_some()).count();
@@ -70,7 +70,7 @@ impl GameLogic for TycoonLogic {
         }
     }
 
-    fn handle_client_event(&self, event: &Self::GameClientEvent, room: &mut ServerRoom<Self>, player_index: usize) {
+    fn handle_client_game_event(&self, event: &Self::GameClientEvent, room: &mut ServerRoom<Self>, player_index: usize) {
         match event {
             TycoonClientEvent::StartGame => {
                 todo!("Start game");

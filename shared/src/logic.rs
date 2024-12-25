@@ -41,6 +41,61 @@ pub fn handle_server_event<Logic: GameLogic>(logic: &mut Logic, client_room: &mu
             client_room.current_player = Some(*current_player);
         },
         types::ServerEvent::GameChanged { game: _ } => { }, // Should not be handled here
-        types::ServerEvent::Unknown => panic!("Should never send a types::ServerEvent::Unknown"), 
+        types::ServerEvent::Unknown => panic!("Should never send a types::ServerEvent::Unknown"), // TODO: Either ignore or force the client to disconnect
     }
 }
+
+pub fn validate_client_event<Logic: GameLogic>(logic: &Logic, room: &types::ClientRoom<Logic::Room, Logic::Player>, event: &types::ClientEvent<Logic::GameClientEvent>, player_index: usize) -> bool {
+    match event {
+        types::ClientEvent::GameEvent(event) => {
+            let mut players = [const { None }; 8];
+            for (index, player) in room.players.iter().enumerate() {
+                if let Some(player) = player {
+                    players[index] = Some(&player.player);
+                }
+            }
+
+            logic.validate_client_game_event(event, &room.room, &players, player_index)
+        },
+        types::ClientEvent::JoinRoom { name } => {
+            if let Some(Some(player)) = room.players.get(player_index) {
+                player.name == [0; 20]
+            } else {
+                false
+            }
+        },
+        types::ClientEvent::LeaveRoom => true,
+        types::ClientEvent::ChangeGame { game } => room.host as usize == player_index, // TODO: Check if the current game is in progress
+        types::ClientEvent::Unknown => false,
+    }
+}
+
+pub fn handle_client_event<Logic: GameLogic>(logic: &Logic, room: &mut types::ServerRoom<Logic>, event: &types::ClientEvent<Logic::GameClientEvent>, player_index: usize) {
+    match event {
+        types::ClientEvent::GameEvent(event) => {
+            let mut players = [const { None }; 8];
+            for (index, player) in room.client_room.players.iter_mut().enumerate() {
+                if let Some(player) = player.as_mut() {
+                    players[index] = Some(&mut player.player);
+                }
+            }
+
+            logic.handle_client_game_event(event, room, player_index);
+        },
+        types::ClientEvent::JoinRoom { name } => {
+            if let Some(player) = room.client_room.players.get_mut(player_index) {
+                if let Some(player) = player {
+                    player.name = *name;
+                }
+            }
+        },
+        types::ClientEvent::LeaveRoom => {
+            logic.send_to_all_except(&types::ServerEvent::PlayerLeft { player_index: player_index as u8 }, player_index, room);
+        },
+        types::ClientEvent::ChangeGame { game } => {
+            logic.send_to_all(&types::ServerEvent::GameChanged { game: *game }, room);
+        },
+        types::ClientEvent::Unknown => (),
+    }
+}
+
