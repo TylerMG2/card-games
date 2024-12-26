@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{traits::GameLogic, types::ServerRoom};
 
+#[derive(Clone)]
 pub struct TycoonLogic {
 }
 
@@ -16,7 +17,6 @@ pub enum RoomState {
 #[derive(Clone, Copy, Deserialize, Serialize, Default)]
 pub struct TycoonRoom {
     pub turn: u8,
-    pub host: u8,
     pub last_played: u64,
     pub last_played_player: u8,
     pub revolution: bool,
@@ -56,7 +56,7 @@ impl GameLogic for TycoonLogic {
             TycoonClientEvent::StartGame => {
                 let num_players = players.iter().filter(|player| player.is_some()).count();
 
-                player_index == room.host as usize && room.state == RoomState::Lobby && num_players >= 3
+                room.state == RoomState::Lobby && num_players >= 3 //TODO: player_index == room.host as usize && 
             },
             TycoonClientEvent::PlayCards { cards } => {
                 todo!("Validate cards played");

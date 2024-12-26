@@ -6,20 +6,11 @@ pub mod games {
     mod games;
 
     pub use games::get_logic;
+    pub use games::GameLogicType;
     pub mod tycoon;
+    pub mod carbo;
 }
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use types::*;
+pub use traits::*;
+pub use logic::*;

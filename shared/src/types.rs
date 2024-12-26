@@ -1,7 +1,7 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{games::get_logic, traits::{GameLogic, ToFromBytes}};
+use crate::{games::{get_logic, GameLogicType}, traits::GameLogic};
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub enum GameType {
@@ -9,6 +9,12 @@ pub enum GameType {
     #[default]
     Tycoon,
     Carbo,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, PartialEq)]
+pub enum RoomState {
+    Lobby,
+    InGame,
 }
 
 //
@@ -32,6 +38,7 @@ pub struct ClientRoom<RoomType, PlayerType> {
     pub host: u8,
     pub game: GameType,
     pub room: RoomType,
+    pub state: RoomState,
     pub current_player: Option<u8>, // This isn't used by the server, only needed by the client
 }
 
@@ -53,7 +60,7 @@ pub struct Connection {
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub enum ServerEvent<Logic: GameLogic> {
     RoomJoined { room: ClientRoom<Logic::Room, Logic::Player>, current_player: u8 },
-    PlayerJoined { player: ClientPlayer<Logic::Player>, player_index: u8 },
+    PlayerJoined { name: [u8; 20], player_index: u8 }, // TODO: Move to a constant
     PlayerLeft { player_index: u8 },
     PlayerDisconnected { player_index: u8 },
     PlayerReconnected { player_index: u8 },
@@ -85,8 +92,9 @@ fn new_server_room(game_type: GameType) -> ServerRoom<impl GameLogic> {
             players: [None; 8],
             host: 0,
             game: game_type,
-            room: logic.default_room(),
+            room: Default::default(),
             current_player: None,
+            state: RoomState::Lobby,
         },
         logic,
     }
@@ -103,7 +111,7 @@ fn switch_game_mode(room: ServerRoom<impl GameLogic>, game: GameType) -> ServerR
             players[index] = Some(ClientPlayer {
                 name: player.name,
                 disconnected: player.disconnected,
-                player: logic.default_player(),
+                player: Default::default(),
             });
         }
     }
@@ -114,8 +122,9 @@ fn switch_game_mode(room: ServerRoom<impl GameLogic>, game: GameType) -> ServerR
             players,
             host: room.client_room.host,
             game,
-            room: logic.default_room(),
+            room: Default::default(),
             current_player: room.client_room.current_player,
+            state: RoomState::Lobby,
         },
         logic,
     }

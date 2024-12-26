@@ -4,12 +4,12 @@ use crate::{logic::{handle_client_event, handle_server_event, validate_client_ev
 
 pub trait GameLogic 
 where 
-    Self: Sized
+    Self: Sized + Send + Sync + Clone + 'static,
 {
     type GameServerEvent: DeserializeOwned + Serialize + Copy;
     type GameClientEvent: DeserializeOwned + Serialize;
-    type Room: Default + Copy + Serialize + DeserializeOwned;
-    type Player: Default + Copy + Serialize + DeserializeOwned;
+    type Room: Default + Copy + Serialize + DeserializeOwned + Send + Sync;
+    type Player: Default + Copy + Serialize + DeserializeOwned + Send + Sync;
 
     // Shared validation for the client and server, in theory in the future if all validation is shared between the client and server
     // we could update the client immediately with changes expected from the server since we know the server will accept the event
@@ -21,14 +21,6 @@ where
 
     // Player index should be provided all the time from the client, for the server its only provided when the server is sending an event to a specific player
     fn handle_server_event(&self, event: &Self::GameServerEvent, room: &mut Self::Room, players: &mut [Option<&mut Self::Player>; 8], player_index: Option<usize>);
-
-    fn default_room(&self) -> Self::Room {
-        Self::Room::default()
-    }
-
-    fn default_player(&self) -> Self::Player {
-        Self::Player::default()
-    }
 
     fn get_client_event(&self, bytes: &[u8]) -> types::ClientEvent<Self::GameClientEvent> {
         types::ClientEvent::from_bytes(bytes)
