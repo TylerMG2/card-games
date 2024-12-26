@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{traits::GameLogic, types::ServerRoom};
+use crate::{traits::GameLogic, types::{self, ServerRoom}, ClientRoom};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CarboLogic {
+    client_room: ClientRoom<CarboRoom, CarboPlayer>,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
@@ -54,7 +55,7 @@ impl GameLogic for CarboLogic {
         }
     }
 
-    fn handle_client_game_event(&self, event: &Self::GameClientEvent, room: &mut ServerRoom<Self>, player_index: usize) {
+    fn handle_client_game_event(&mut self, event: &Self::GameClientEvent, connections: &[Option<types::Connection>; 8], player_index: usize) {
         match event {
             CarboClientEvent::StartGame => {
                 todo!("Start game");
@@ -65,11 +66,19 @@ impl GameLogic for CarboLogic {
         }
     }
 
-    fn handle_server_event(&self, event: &Self::GameServerEvent, room: &mut Self::Room, players: &mut [Option<&mut Self::Player>; 8], player_index: Option<usize>) {
+    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>) {
         match event {
             CarboServerEvent::GameStarted { turn, cards } => {
                 todo!("Game started");
             },
         }
+    }
+
+    fn get_client_room(&self) -> &ClientRoom<Self::Room, Self::Player> {
+        &self.client_room
+    }
+
+    fn get_client_room_mut(&mut self) -> &mut ClientRoom<Self::Room, Self::Player> {
+        &mut self.client_room
     }
 }

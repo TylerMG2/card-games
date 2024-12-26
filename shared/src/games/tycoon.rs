@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{traits::GameLogic, types::ServerRoom};
+use crate::{traits::GameLogic, types::{self, ServerRoom}, ClientRoom};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TycoonLogic {
+    client_room: ClientRoom<TycoonRoom, TycoonPlayer>,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
@@ -70,16 +71,16 @@ impl GameLogic for TycoonLogic {
         }
     }
 
-    fn handle_client_game_event(&self, event: &Self::GameClientEvent, room: &mut ServerRoom<Self>, player_index: usize) {
+    fn handle_client_game_event(&mut self, event: &Self::GameClientEvent, connections: &[Option<types::Connection>; 8], player_index: usize) {
         match event {
             TycoonClientEvent::StartGame => {
                 todo!("Start game");
             },
             TycoonClientEvent::PlayCards { cards } => {
-                self.send_to_all_game_event(&TycoonServerEvent::CardsPlayed { cards: *cards }, room);
+                self.send_to_all_game_event(&TycoonServerEvent::CardsPlayed { cards: *cards }, connections);
             },
             TycoonClientEvent::Pass => {
-                self.send_to_all_game_event(&TycoonServerEvent::Pass, room);
+                self.send_to_all_game_event(&TycoonServerEvent::Pass, connections);
             },
             TycoonClientEvent::ExchangeCards { cards } => {
                 todo!("Exchange cards");
@@ -87,25 +88,25 @@ impl GameLogic for TycoonLogic {
         }
     }
 
-    fn handle_server_event(&self, event: &Self::GameServerEvent, room: &mut Self::Room, players: &mut [Option<&mut Self::Player>; 8], player_index: Option<usize>) {
+    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>) {;
         match event {
             TycoonServerEvent::GameStarted { turn, cards, other_hands } => {
-                room.turn = *turn;
-                room.last_played = 0;
-                room.last_played_player = 0;
-                room.revolution = false;
+                self.client_room.room.turn = *turn;
+                self.client_room.room.last_played = 0;
+                self.client_room.room.last_played_player = 0;
+                self.client_room.room.revolution = false;
 
-                for (index, player) in players.iter_mut().enumerate() {
-                    if let Some(player) = player.as_deref_mut() {
-                        player.hand = 0;
-                        player.num_cards = other_hands[index];
+                for (index, player) in self.client_room.players.iter_mut().enumerate() {
+                    if let Some(player) = player.as_mut() {
+                        player.player.hand = 0;
+                        player.player.num_cards = other_hands[index];
                     }
                 }
 
                 if let Some(player_index) = player_index {
-                    if let Some(Some(player)) = players.get_mut(player_index) {
-                        player.hand = *cards;
-                        player.num_cards = player.hand.count_ones() as u8;
+                    if let Some(Some(player)) = self.client_room.players.get_mut(player_index) {
+                        player.player.hand = *cards;
+                        player.player.num_cards = player.player.hand.count_ones() as u8;
                     }
                 } else {
                     println!("Player index not found for game start event");
@@ -121,5 +122,13 @@ impl GameLogic for TycoonLogic {
                 todo!("Receive cards");
             },
         }
+    }
+
+    fn get_client_room(&self) -> &ClientRoom<Self::Room, Self::Player> {
+        &self.client_room
+    }
+
+    fn get_client_room_mut(&mut self) -> &mut ClientRoom<Self::Room, Self::Player> {
+        &mut self.client_room
     }
 }

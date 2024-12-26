@@ -11,8 +11,9 @@ pub enum GameType {
     Carbo,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Copy, PartialEq, Default)]
 pub enum RoomState {
+    #[default]
     Lobby,
     InGame,
 }
@@ -32,7 +33,7 @@ pub struct ClientPlayer<PlayerType> {
 // Rooms
 //
 
-#[derive(Deserialize, Serialize, Clone, Copy)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default)]
 pub struct ClientRoom<RoomType, PlayerType> {
     pub players: [Option<ClientPlayer<PlayerType>>; 8], // TODO: Move to a constant
     pub host: u8,
@@ -42,15 +43,42 @@ pub struct ClientRoom<RoomType, PlayerType> {
     pub current_player: Option<u8>, // This isn't used by the server, only needed by the client
 }
 
-pub struct ServerRoom<Logic: GameLogic> {
+#[derive(Default)]
+pub struct ServerRoom {
     pub connections: [Option<Connection>; 8], // TODO: Move to a constant
-    pub client_room: ClientRoom<Logic::Room, Logic::Player>,
-    pub logic: Logic,
+    pub logic: GameLogicType,
 }
 
 pub struct Connection {
     pub id: uuid::Uuid,
     pub sender: Option<UnboundedSender<Vec<u8>>>,
+}
+
+impl ServerRoom {
+    pub fn add_connection(&mut self, tx: UnboundedSender<Vec<u8>>, id: uuid::Uuid) -> Option<usize> {
+        let mut first_free: Option<usize> = None;
+
+        // Look for player id while keeping track of the first free slot
+        for (index, connection) in self.connections.iter_mut().enumerate() {
+            if connection.is_none() && first_free.is_none() {
+                first_free = Some(index);
+            }
+
+            if let Some(connection) = connection {
+                if connection.id == id {
+                    connection.sender = Some(tx);
+                    return Some(index);
+                }
+            }
+        }
+
+        if let Some(index) = first_free {
+            self.connections[index] = Some(Connection { id, sender: Some(tx) });
+            Some(index)
+        } else {
+            None
+        }
+    }
 }
 
 //
@@ -81,51 +109,4 @@ pub enum ClientEvent<T> {
 
     #[default]
     Unknown,
-}
-
-fn new_server_room(game_type: GameType) -> ServerRoom<impl GameLogic> {
-    let logic = get_logic(game_type);
-
-    ServerRoom {
-        connections: [const { None }; 8],
-        client_room: ClientRoom {
-            players: [None; 8],
-            host: 0,
-            game: game_type,
-            room: Default::default(),
-            current_player: None,
-            state: RoomState::Lobby,
-        },
-        logic,
-    }
-}
-
-// Take ownership of the room (to avoid reuse) and return a new room with the updated game type
-fn switch_game_mode(room: ServerRoom<impl GameLogic>, game: GameType) -> ServerRoom<impl GameLogic> {
-    let logic = get_logic(game);
-
-    // Create new players array replacing the player field with the default player of the new logic type
-    let mut players = [None; 8];
-    for (index, player) in room.client_room.players.iter().enumerate() {
-        if let Some(player) = player {
-            players[index] = Some(ClientPlayer {
-                name: player.name,
-                disconnected: player.disconnected,
-                player: Default::default(),
-            });
-        }
-    }
-
-    ServerRoom {
-        connections: room.connections,
-        client_room: ClientRoom {
-            players,
-            host: room.client_room.host,
-            game,
-            room: Default::default(),
-            current_player: room.client_room.current_player,
-            state: RoomState::Lobby,
-        },
-        logic,
-    }
 }
