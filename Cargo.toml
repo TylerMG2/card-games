@@ -2,5 +2,7 @@
 members = [
     "backend",
     "frontend",
-    "shared",
+    "shared/shared",
+    "shared/shared-core", 
+    "shared/shared-macros",
 ]

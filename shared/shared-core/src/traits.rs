@@ -2,18 +2,13 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{logic::{handle_client_event, handle_server_event, validate_client_event}, types};
 
-pub trait GameLogic 
-where 
-    Self: Sized + Send + Sync + Default + 'static,
-{
+pub trait GameLogic : Sized + RoomFields + 'static {
     type GameServerEvent: DeserializeOwned + Serialize + Copy;
     type GameClientEvent: DeserializeOwned + Serialize;
-    type Room: Default + Copy + Serialize + DeserializeOwned + Send + Sync;
-    type Player: Default + Copy + Serialize + DeserializeOwned + Send + Sync;
 
     // Shared validation for the client and server, in theory in the future if all validation is shared between the client and server
     // we could update the client immediately with changes expected from the server since we know the server will accept the event
-    fn validate_client_game_event(&self, event: &Self::GameClientEvent, room: &Self::Room, players: &[Option<&Self::Player>; 8], player_index: usize) -> bool;
+    fn validate_client_game_event(&self, event: &Self::GameClientEvent, player_index: usize) -> bool;
 
     // The server should not update the room directly, instead it should send server events to the clients which will update their rooms and the
     // server room using the handle_server_event method
@@ -21,10 +16,7 @@ where
 
     // Player index should be provided all the time from the client, for the server its only provided when the server is sending an event to a specific player
     fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>);
-
-    // Both client room methods are a little extra boiler plate but required
-    fn get_client_room(&self) -> &types::ClientRoom<Self::Room, Self::Player>;
-    fn get_client_room_mut(&mut self) -> &mut types::ClientRoom<Self::Room, Self::Player>;
+    // TODO: Add a function like get_game_name() to return the name of the game
 
     fn get_client_event(&self, bytes: &[u8]) -> types::ClientEvent<Self::GameClientEvent> {
         types::ClientEvent::from_bytes(bytes)
@@ -34,8 +26,8 @@ where
         types::ServerEvent::from_bytes(bytes)
     }
 
-    fn validate_client_event(&self, room: &types::ClientRoom<Self::Room, Self::Player>, event: &types::ClientEvent<Self::GameClientEvent>, player_index: usize) -> bool {
-        validate_client_event(self, room, event, player_index)
+    fn validate_client_event(&self, event: &types::ClientEvent<Self::GameClientEvent>, player_index: usize) -> bool {
+        validate_client_event(self, event, player_index)
     }
 
     // TODO: Should return a enum/bool to indicate if the connection should be closed (basically if player left)
@@ -45,13 +37,13 @@ where
 
     fn handle_connection(&mut self, connections: &[Option<types::Connection>; 8], player_index: usize) -> bool {
         let mut reconnection = false;
-        if let Some(Some(_player)) = self.get_client_room().players.get(player_index) {
+        if let Some(Some(_player)) = self.players().get(player_index) {
             self.send_to_all_except(&types::ServerEvent::PlayerReconnected { player_index: player_index as u8 }, player_index, connections);
             reconnection = true;
         }
 
         if reconnection {
-            self.send_to(&types::ServerEvent::RoomJoined { room: *self.get_client_room(), current_player: player_index as u8 }, player_index, connections);
+            self.send_to(&types::ServerEvent::RoomJoined { room: *self, current_player: player_index as u8 }, player_index, connections);
         }
         reconnection
     }
@@ -133,4 +125,24 @@ where
             sender.send(event.to_bytes()).unwrap();
         }
     }
+}
+
+// Object traits
+
+pub trait PlayerFields: Sized + Default + Clone + Copy + Serialize + DeserializeOwned {
+    fn name(&self) -> &[u8; 20]; // TODO: Maybe make this more flexible although I think name is ok to always be fixed length per game
+    fn set_name(&mut self, name: &[u8; 20]);
+    fn disconnected(&self) -> bool;
+    fn set_disconnected(&mut self, disconnected: bool);
+}
+
+pub trait RoomFields: Default + Clone + Copy + Serialize + DeserializeOwned {
+    type Player: PlayerFields;
+
+    fn players(&self) -> &[Option<Self::Player>; 8]; // TODO: Make this more flexible, for now lets just have it match exactly the length of connections. Maybe a vec would be better?
+    fn players_mut(&mut self) -> &mut [Option<Self::Player>; 8];
+    fn host(&self) -> u8;
+    fn set_host(&mut self, host: u8);
+    fn player_index(&self) -> u8;
+    fn set_player_index(&mut self, player_index: u8);
 }
