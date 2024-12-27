@@ -18,31 +18,6 @@ pub enum RoomState {
     InGame,
 }
 
-//
-// Players
-//
-// #[derive(Deserialize, Serialize, Clone, Copy)]
-// pub struct ClientPlayer<PlayerType> {
-//     pub name: [u8; 20], // TODO: Move to a constant
-//     pub disconnected: bool,
-//     pub player: PlayerType,
-// }
-
-
-//
-// Rooms
-//
-
-// #[derive(Deserialize, Serialize, Clone, Copy, Default)]
-// pub struct ClientRoom<RoomType, PlayerType> {
-//     pub players: [Option<ClientPlayer<PlayerType>>; 8], // TODO: Move to a constant
-//     pub host: u8,
-//     pub game: GameType,
-//     pub room: RoomType,
-//     pub state: RoomState,
-//     pub current_player: Option<u8>, // This isn't used by the server, only needed by the client
-// }
-
 pub struct Connection {
     pub id: uuid::Uuid,
     pub sender: Option<UnboundedSender<Vec<u8>>>,
@@ -77,4 +52,10 @@ pub enum ClientEvent<T> {
 
     #[default]
     Unknown,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum ProcessEventResult {
+    LeaveRoom,
+    ChangeGame(GameType),
 }

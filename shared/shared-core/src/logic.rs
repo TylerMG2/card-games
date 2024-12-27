@@ -1,12 +1,9 @@
 use crate::{traits::GameLogic, types, PlayerFields, RoomFields};
 
-// I think in the future I should add a boolean argument thats like "is_server" to the handle_server_event function
-// then I can avoid updating state that doesn't need to be updated on the server, i.e a player joining a room where
-// we just send them the current room and update the current player (only needed by the client).
-pub fn handle_server_event<Logic: GameLogic>(logic: &mut Logic, event: &types::ServerEvent<Logic>, player_index: Option<usize>) {
+pub fn handle_server_event<Logic: GameLogic>(logic: &mut Logic, event: &types::ServerEvent<Logic>, as_player: Option<usize>, is_server_side: bool) {
     match event {
         types::ServerEvent::GameEvent(event) => {
-            logic.handle_server_game_event(&event, player_index);
+            logic.handle_server_game_event(&event, as_player, is_server_side);
         },
         types::ServerEvent::HostChanged { player_index } => {
             logic.set_host(*player_index);
@@ -18,7 +15,21 @@ pub fn handle_server_event<Logic: GameLogic>(logic: &mut Logic, event: &types::S
                 }
             }
 
-            //TODO: check if they are host, if so we need to find a new host, if none the room should close later.
+            if *player_index == logic.host() {
+                let mut new_host = None;
+                for (index, player) in logic.players().iter().enumerate() {
+                    if let Some(player) = player {
+                        if !player.disconnected() {
+                            new_host = Some(index as u8);
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(new_host) = new_host {
+                    logic.set_host(new_host);
+                }
+            }
         },
         types::ServerEvent::PlayerJoined { name, player_index } => {
             let mut new_player = <Logic as RoomFields>::Player::default();
@@ -36,7 +47,7 @@ pub fn handle_server_event<Logic: GameLogic>(logic: &mut Logic, event: &types::S
             }
         },
         types::ServerEvent::RoomJoined { room, current_player } => {
-            if player_index.is_some() {
+            if !is_server_side {
                 *logic = *room;
                 logic.set_player_index(*current_player);
             }

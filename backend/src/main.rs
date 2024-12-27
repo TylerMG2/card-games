@@ -2,9 +2,9 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use axum::{extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Router};
 use serde::Deserialize;
 
-use shared::ServerRoom;
-use tokio::{net::TcpListener, sync::RwLock, time::{sleep, timeout}};
-use futures::stream::StreamExt;
+use shared::{ProcessEventResult, ServerRoom};
+use tokio::{net::TcpListener, sync::RwLock, time::sleep};
+use futures::{sink::SinkExt, stream::StreamExt};
 
 #[derive(Clone)]
 struct AppState {
@@ -58,18 +58,21 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
         match possible_index {
             Some(possible_index) => {
                 player_index = possible_index;
-                !room.logic.handle_connection(&room.connections, possible_index)
-                
+                room.logic.handle_connection(&room.connections, possible_index)
             },
             None => {
-                println!("{} failed to connect to {}", query.id, query.code);
+                println!("{} failed to connect to {}, no room", query.id, query.code);
                 return;
             }
         }
     };
 
-    // If not reconnected, wait 15 seconds then check if the player at the index is still None
-    let connection_result = if (!reconnected) {
+    if reconnected {
+        println!("{} reconnecting to {}", query.id, query.code);
+    }
+
+    // If user is not reconnected automatically, wait 15 seconds then check if the player at the index is still None
+    let connection_result = if !reconnected {
         let code = query.code.clone();
         let state = state.clone();
         tokio::spawn(async move {
@@ -77,19 +80,66 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 
             let mut rooms = state.rooms.write().await;
             let room = rooms.get_mut(&code).unwrap();
-            !room.logic.has_player(player_index)
+            room.logic.has_player(player_index)
         }).await.unwrap()
     } else {
         true
     };
 
     if connection_result {
-        // Start loops
+        println!("{} connected to {}", query.id, query.code);
+        let recv_state = state.clone();
+        let recv_query = query.clone();
+
+        let mut recv_task = tokio::spawn(async move {
+            while let Some(msg) = receiver.next().await {
+                let msg = match msg {
+                    Ok(msg) => msg,
+                    Err(_) => break, // Close the connection if receiving fails (force the player to reconnect)
+                };
+
+                match msg {
+                    Message::Binary(data) => {
+                        let mut rooms = recv_state.rooms.write().await;
+                        let room = rooms.get_mut(&recv_query.code).expect("Room should only be removed if all players are disconnected");
+    
+                        match room.logic.process_client_event(&room.connections, &data, player_index) {
+                            Some(ProcessEventResult::LeaveRoom) => { // Doesn't really need to be an Option, can just add my own None variant
+                                room.connections[player_index] = None;
+                                break;
+                            },
+                            Some(ProcessEventResult::ChangeGame(game)) => {
+                                room.logic.change_game(game);
+                            },
+                            None => {},
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let mut send_task = tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                if sender.send(Message::Binary(msg)).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        // Abort the tasks if one of them fails
+        tokio::select! {
+            _ = &mut send_task => recv_task.abort(),
+            _ = &mut recv_task => send_task.abort(),
+        };
+    } else {
+        println!("{} failed to connect to {}, didn't provide name in time", query.id, query.code);
     }
 
     // Disconnect
     let mut rooms = state.rooms.write().await;
     let room = rooms.get_mut(&query.code).unwrap();
+    println!("{} disconnected from {}", query.id, query.code);
 
     // If the connection wasn't removed (player leaving the room) then disconnect the player
     if let Some(Some(connection)) = room.connections.get_mut(player_index) {

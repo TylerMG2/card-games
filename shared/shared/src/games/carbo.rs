@@ -72,7 +72,7 @@ impl GameLogic for CarboRoom {
         }
     }
 
-    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>) {
+    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>, is_server_side: bool) {
         match event {
             CarboServerEvent::GameStarted { turn, cards } => {
                 todo!("Game started");

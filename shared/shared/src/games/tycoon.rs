@@ -10,6 +10,9 @@ pub enum RoomState {
     Game,
 }
 
+// I don't know how much I like this at the moment, the previous way was a ClientRoom struct that had a room field
+// but that required a generic type. This was is more verbose to define initially but less verbose to use (no need)
+// to access everything through client_room.room
 #[derive(RoomFields, Clone, Copy, Deserialize, Serialize, Default)]
 pub struct TycoonRoom {
     pub turn: u8,
@@ -18,7 +21,7 @@ pub struct TycoonRoom {
     pub revolution: bool,
     pub state: RoomState,
 
-    #[host] 
+    #[host]
     pub host: u8,
     #[players] 
     pub players: [Option<TycoonPlayer>; 8],
@@ -93,7 +96,7 @@ impl GameLogic for TycoonRoom {
         }
     }
 
-    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>) {;
+    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>, is_server_side: bool) {;
         match event {
             TycoonServerEvent::GameStarted { turn, cards, other_hands } => {
                 self.turn = *turn;

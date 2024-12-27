@@ -1,7 +1,8 @@
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::{logic::{handle_client_event, handle_server_event, validate_client_event}, types};
+use crate::{logic::{handle_client_event, handle_server_event, validate_client_event}, types, ClientEvent, ProcessEventResult};
 
+// TODO: Move all shared logic (like handle_connection) to a seperate outside function to keep the trait clean
 pub trait GameLogic : Sized + RoomFields + 'static {
     type GameServerEvent: DeserializeOwned + Serialize + Copy;
     type GameClientEvent: DeserializeOwned + Serialize;
@@ -15,24 +16,25 @@ pub trait GameLogic : Sized + RoomFields + 'static {
     fn handle_client_game_event(&mut self, event: &Self::GameClientEvent, connections: &[Option<types::Connection>; 8], player_index: usize);
 
     // Player index should be provided all the time from the client, for the server its only provided when the server is sending an event to a specific player
-    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>);
+    fn handle_server_game_event(&mut self, event: &Self::GameServerEvent, player_index: Option<usize>, is_server_side: bool);
     // TODO: Add a function like get_game_name() to return the name of the game
 
-    fn get_client_event(&self, bytes: &[u8]) -> types::ClientEvent<Self::GameClientEvent> {
-        types::ClientEvent::from_bytes(bytes)
+    fn process_server_event(&mut self, bytes: &[u8], player_index: Option<usize>) {
+        let event = types::ServerEvent::from_bytes(bytes);
+        handle_server_event(self, &event, player_index, false);
     }
 
-    fn get_server_event(&self, bytes: &[u8]) -> types::ServerEvent<Self> {
-        types::ServerEvent::from_bytes(bytes)
-    }
+    fn process_client_event(&mut self, connections: &[Option<types::Connection>; 8], bytes: &[u8], player_index: usize) -> Option<ProcessEventResult> {
+        let event = types::ClientEvent::from_bytes(bytes);
+        if validate_client_event(self, &event, player_index) {
+            handle_client_event(self, connections, &event, player_index);
+        }
 
-    fn validate_client_event(&self, event: &types::ClientEvent<Self::GameClientEvent>, player_index: usize) -> bool {
-        validate_client_event(self, event, player_index)
-    }
-
-    // TODO: Should return a enum/bool to indicate if the connection should be closed (basically if player left)
-    fn handle_client_event(&mut self, connections: &[Option<types::Connection>; 8], event: &types::ClientEvent<Self::GameClientEvent>, player_index: usize) {
-        handle_client_event(self, connections, event, player_index);
+        match event {
+            ClientEvent::LeaveRoom => Some(ProcessEventResult::LeaveRoom),
+            ClientEvent::ChangeGame { game } => Some(ProcessEventResult::ChangeGame(game)),
+            _ => None,
+        }
     }
 
     fn handle_connection(&mut self, connections: &[Option<types::Connection>; 8], player_index: usize) -> bool {
@@ -52,6 +54,24 @@ pub trait GameLogic : Sized + RoomFields + 'static {
         self.send_to_all_except(&types::ServerEvent::PlayerLeft { player_index: player_index as u8 }, player_index, connections);
     }
 
+    // Build from another logic type
+    fn from_logic(logic: &impl GameLogic) -> Self {
+        let mut new = Self::default();
+        let new_players = new.players_mut();
+
+        for (index, player) in logic.players().iter().enumerate() {
+            if let Some(player) = player {
+                let mut new_player = Self::Player::default();
+                new_player.set_name(player.name());
+                new_player.set_disconnected(player.disconnected());
+                new_players[index] = Some(new_player);
+            }
+        }
+        new.set_host(logic.host());
+        new.set_player_index(logic.player_index());
+        new
+    }
+
     //
     // Networking methods
     //
@@ -60,7 +80,7 @@ pub trait GameLogic : Sized + RoomFields + 'static {
     }
 
     fn send_to_all(&mut self, event: &types::ServerEvent<Self>, connections: &[Option<types::Connection>; 8]) {
-        handle_server_event(self, event, None);
+        handle_server_event(self, event, None, true);
 
         for connection in connections.iter() {
             send(event, connection);
@@ -72,7 +92,7 @@ pub trait GameLogic : Sized + RoomFields + 'static {
     }
 
     fn send_to_all_except(&mut self, event: &types::ServerEvent<Self>, except: usize, connections: &[Option<types::Connection>; 8]) {
-        handle_server_event(self, event, None);
+        handle_server_event(self, event, None, true);
 
         for (index, connection) in connections.iter().enumerate() {
             if index != except {
@@ -94,7 +114,7 @@ pub trait GameLogic : Sized + RoomFields + 'static {
         }
 
         // Only need to handle the event if we actually sent it to a player
-        handle_server_event(self, event, Some(player_index)); 
+        handle_server_event(self, event, Some(player_index), true); 
     }
 }
 

@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub mod games {
     mod games;
 
-    pub use games::get_logic;
+    pub use games::create_logic_from;
     pub use games::GameLogicType;
     pub mod tycoon;
     pub mod carbo;
