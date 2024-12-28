@@ -1,22 +1,19 @@
-use games::GameLogicType;
-use shared_core::Connection;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub mod games {
     mod games;
-
-    pub use games::create_logic_from;
-    pub use games::GameLogicType;
     pub mod tycoon;
     pub mod carbo;
 }
 
-pub use shared_core::*;
+pub mod types;
+pub mod traits;
+pub mod logic;
 
 #[derive(Default)]
 pub struct ServerRoom {
-    pub connections: [Option<Connection>; 8], // TODO: Move to a constant
-    pub logic: GameLogicType,
+    pub connections: [Option<types::Connection>; types::MAX_PLAYERS],
+    pub room: types::Room,
 }
 
 impl ServerRoom {
@@ -38,7 +35,7 @@ impl ServerRoom {
         }
 
         if let Some(index) = first_free {
-            self.connections[index] = Some(Connection { id, sender: Some(tx) });
+            self.connections[index] = Some(types::Connection { id, sender: Some(tx) });
             Some(index)
         } else {
             None

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-shared = { path = "../shared/shared" }
+shared = { path = "../shared" }
 axum = { version = "0.7.7", features = ["ws", "macros"] }
 futures = "0.3.31"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
