@@ -2,13 +2,15 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use axum::{extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Router};
 use serde::Deserialize;
 
-use shared::{logic::handle_client_event, traits::{Networking, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}, ServerRoom};
-use tokio::{net::TcpListener, sync::{mpsc::UnboundedSender, RwLock}, time::{sleep, timeout}};
+use shared::{logic::handle_client_event, traits::{Networking, NetworkingSend, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
+use tokio::{net::TcpListener, sync::{mpsc::UnboundedSender, RwLock}, time::timeout};
 use futures::{sink::SinkExt, stream::{SplitStream, StreamExt}};
+
+mod types;
 
 #[derive(Clone)]
 struct AppState {
-    rooms: Arc<RwLock<HashMap<String, ServerRoom>>>,
+    rooms: Arc<RwLock<HashMap<String, types::ServerRoom>>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -40,7 +42,7 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     let id = {
         match uuid::Uuid::parse_str(&query.id) {
             Ok(id) => id,
-            Err(_) => return,
+            Err(_) => return close_room_if_empty(&state, &query.code).await,
         }
     };
 
@@ -112,22 +114,28 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
         println!("{} disconnected from {}", id, query.code);
     }
 
-    // Remove the room if all disconnected (None or sender is None) dont unwrap
-    if room.connections.iter().all(|connection| {
-        match connection {
-            Some(connection) => connection.sender.is_none(),
-            None => true,
+    close_room_if_empty(&state, &query.code).await;
+}
+
+async fn close_room_if_empty(state: &AppState, code: &str) {
+    let mut rooms = state.rooms.write().await;
+    if let Some(room) = rooms.get_mut(code) {
+        if room.connections.iter().all(|connection| {
+            match connection {
+                Some(connection) => connection.sender.is_none(),
+                None => true,
+            }
+        }) {
+            rooms.remove(code);
+            println!("Room {} closed", code);
         }
-    }) {
-        rooms.remove(&query.code);
-        println!("Room {} removed", query.code);
     }
 }
 
 async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedSender<Vec<u8>>, id: uuid::Uuid, receiver: &mut SplitStream<WebSocket>) -> Option<usize> {
     let player_index = {
         let mut rooms = state.rooms.write().await;
-        let room = rooms.entry(query.code.clone()).or_insert(ServerRoom::default());
+        let room = rooms.entry(query.code.clone()).or_insert(types::ServerRoom::default());
 
         if let Some(player_index) = room.add_connection(tx, id) {
             let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room, current_player: player_index as u8 });
@@ -153,7 +161,10 @@ async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedS
             room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }));
             Some(player_index)
         },
-        Ok(None) => None,
+        Ok(None) => {
+            println!("{} failed to connect to {}, REASON: Player disconnected", query.id, query.code);
+            None
+        },
         Err(_) => {
             println!("{} failed to connect to {}, REASON: Timed out", query.id, query.code);
             None

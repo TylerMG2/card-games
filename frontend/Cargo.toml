@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-shared = { path = "../shared" }
+shared = { path = "../shared", features = ["wasm"] }
+yew = { version = "0.21", features = ["csr"] }
+uuid = { version = "1.11", features = ["v4"] }

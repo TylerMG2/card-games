@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::games::{carbo, tycoon};
 use crate::traits;
@@ -94,12 +93,4 @@ pub enum CommonClientEvent {
     JoinRoom { name: [u8; MAX_NAME_LENGTH] },
     LeaveRoom,
     ChangeGame { game: GameType },
-}
-
-//
-// Networking
-//
-pub struct Connection {
-    pub id: uuid::Uuid,
-    pub sender: Option<UnboundedSender<Vec<u8>>>,
 }

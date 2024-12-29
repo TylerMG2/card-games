@@ -1,6 +1,6 @@
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::{logic::handle_server_event, types};
+use crate::{logic::{self, handle_server_event}, types::{self, MAX_PLAYERS}};
 
 pub trait GameLogic {
     type GameServerEvent: Serialize + DeserializeOwned;
@@ -34,7 +34,6 @@ where
     }
 }
 
-
 pub trait Networking {
     fn send_to_all_game_event<Logic: GameLogic>(&self, room: &mut types::Room, event: Logic::GameServerEvent) {
         self.send_to_all(room, Logic::wrap_game_event(event));
@@ -58,34 +57,45 @@ pub trait Networking {
     fn send_to_all_deterministic(&self, room: &mut types::Room, event: types::ServerEvent, origin: usize);
 }
 
-impl Networking for [Option<types::Connection>; 8] {
+pub trait NetworkingSend {
+    fn send(&self, event: &types::ServerEvent);
+}
+
+impl<T> Networking for [Option<T>; MAX_PLAYERS] 
+where 
+    T: NetworkingSend
+{
     fn send_to_all(&self, room: &mut types::Room, event: types::ServerEvent) {
-        handle_server_event(room, &event, None, true);
+        logic::handle_server_event(room, &event, None, true);
 
         for connection in self.iter() {
-            send(&event, connection);
+            if let Some(connection) = connection {
+                connection.send(&event);
+            }
         }
     }
 
     fn send_to_all_except(&self, room: &mut types::Room, event: types::ServerEvent, except: usize) {
-        handle_server_event(room, &event, None, true);
+        logic::handle_server_event(room, &event, None, true);
 
         for (index, connection) in self.iter().enumerate() {
             if index != except {
-                send(&event, connection);
+                if let Some(connection) = connection {
+                    connection.send(&event);
+                }
             }
         }
     }
 
     fn send_to(&self, room: &mut types::Room, event: types::ServerEvent, player_index: usize) {
-        if let Some(connection) = self.get(player_index) {
-            send(&event, connection);
+        if let Some(Some(connection)) = self.get(player_index) {
+            connection.send(&event);
         } else {
             println!("Tried to send to a connection that doesn't exist");
             return;
         }
 
-        handle_server_event(room, &event, Some(player_index), true); // Only need to handle the event if we actually sent it to a player
+        logic::handle_server_event(room, &event, Some(player_index), true); // Only need to handle the event if we actually sent it to a player
     }
 
     fn send_to_all_deterministic(&self, room: &mut types::Room, event: types::ServerEvent, origin: usize) {
@@ -104,13 +114,5 @@ impl Networking for types::ClientConnection {
 
     fn send_to_all_deterministic(&self, room: &mut types::Room, event: types::ServerEvent, origin: usize) {
         handle_server_event(room, &event, Some(origin), false);
-    }
-}
-
-fn send(event: &types::ServerEvent, connection: &Option<types::Connection>) {
-    if let Some(connection) = connection {
-        if let Some(sender) = &connection.sender {
-            sender.send(event.to_bytes()).unwrap(); // TODO: Handle error (I think its rare though)
-        }
     }
 }
