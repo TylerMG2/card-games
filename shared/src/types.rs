@@ -8,28 +8,28 @@ pub const MAX_NAME_LENGTH: usize = 20;
 
 pub struct ClientConnection;
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug)]
 pub enum GameType {
     #[default]
     Tycoon,
     Carbo,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, PartialEq, Default)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug)]
 pub enum RoomState {
     #[default]
     Lobby,
     InGame,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Copy)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct Room {
     pub common: CommonRoom,
     pub carbo: carbo::CarboRoom,
     pub tycoon: tycoon::TycoonRoom,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Copy)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct CommonRoom {
     pub state: RoomState,
     pub game: GameType,
@@ -38,14 +38,14 @@ pub struct CommonRoom {
     pub players: [Option<Player>; MAX_PLAYERS],
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Copy)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct Player {
     pub common: CommonPlayer,
     pub carbo: carbo::CarboPlayer,
     pub tycoon: tycoon::TycoonPlayer,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Copy)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct CommonPlayer {
     pub name: [u8; MAX_NAME_LENGTH],
     pub disconnected: bool,
@@ -57,7 +57,7 @@ pub struct CommonPlayer {
 
 // If I use the form <game::GameRoom as GameLogic>::GameServerEvent, I can probably write a macro to generate the
 // Room, Player and Event types rather then having to update each one each time I add a new game
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub enum ServerEvent {
     CommonEvent(CommonServerEvent),
     CarboEvent(<carbo::CarboRoom as traits::GameLogic>::GameServerEvent),
@@ -67,7 +67,7 @@ pub enum ServerEvent {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CommonServerEvent {
     RoomJoined { new_room: Room, current_player: u8 },
     PlayerJoined { name: [u8; MAX_NAME_LENGTH], player_index: u8 },
@@ -78,7 +78,7 @@ pub enum CommonServerEvent {
     GameChanged { game: GameType },
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub enum ClientEvent {
     CommonEvent(CommonClientEvent),
     CarboEvent(<carbo::CarboRoom as traits::GameLogic>::GameClientEvent),
@@ -88,7 +88,7 @@ pub enum ClientEvent {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CommonClientEvent {
     JoinRoom { name: [u8; MAX_NAME_LENGTH] },
     LeaveRoom,

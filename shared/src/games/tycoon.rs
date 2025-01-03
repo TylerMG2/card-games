@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use crate::{traits, types};
 
-#[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq, Debug)]
 pub enum RoomState {
     #[default]
     Lobby,
@@ -9,7 +9,7 @@ pub enum RoomState {
     Game,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Default)]
+#[derive(Clone, Copy, Deserialize, Serialize, Default, Debug)]
 pub struct TycoonRoom {
     pub turn: u8,
     pub last_played: u64,
@@ -18,13 +18,13 @@ pub struct TycoonRoom {
     pub state: RoomState,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Default)]
+#[derive(Clone, Copy, Deserialize, Serialize, Default, Debug)]
 pub struct TycoonPlayer {
     pub hand: u64,
     pub num_cards: u8,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize, Debug)]
 pub enum TycoonServerEvent {
     GameStarted { turn: u8, cards: u64, other_hands: [u8; 8] }, // TODO: Move to a constant
     CardsPlayed { cards: u64 },
@@ -32,7 +32,7 @@ pub enum TycoonServerEvent {
     ReceiveCards { cards: u64 },
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize, Debug)]
 pub enum TycoonClientEvent {
     StartGame,
     PlayCards { cards: u64 },

@@ -1,24 +1,26 @@
-use yew::prelude::*;
+use leptos::prelude::*;
+use leptos_router::{components::{Route, Router, Routes}, path};
+use components::{home::Home, room::Room};
 
-#[function_component]
-fn App() -> Html {
-    let counter = use_state(|| 0);
-    let onclick = {
-        let counter = counter.clone();
-        move |_| {
-            let value = *counter + 1;
-            counter.set(value);
-        }
-    };
-
-    html! {
-        <div>
-            <button {onclick}>{ "+1" }</button>
-            <p>{ *counter }</p>
-        </div>
-    }
+pub mod components {
+    pub mod home;
+    pub mod room;
 }
 
 fn main() {
-    yew::Renderer::<App>::new().render();
+    console_error_panic_hook::set_once();
+    leptos::mount::mount_to_body(App)
+}
+
+
+#[component]
+fn App() -> impl IntoView {
+    view! {
+        <Router>
+            <Routes fallback=|| view! { <div>{"404"}</div> }>
+                <Route path=path!("/") view=Home />
+                <Route path=path!("/room/:code") view=Room />
+            </Routes>
+        </Router>
+    }
 }

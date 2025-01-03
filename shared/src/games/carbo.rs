@@ -2,30 +2,30 @@ use serde::{Deserialize, Serialize};
 use crate::{traits, types};
 
 
-#[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq, Debug)]
 pub enum CarboRoomState {
     #[default]
     Lobby,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Default)]
+#[derive(Clone, Copy, Deserialize, Serialize, Default, Debug)]
 pub struct CarboRoom {
     pub turn: u8,
     pub state: CarboRoomState,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Default)]
+#[derive(Clone, Copy, Deserialize, Serialize, Default, Debug)]
 pub struct CarboPlayer {
     pub visible_cards: u64,
     pub num_cards: u8,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize, Debug)]
 pub enum CarboServerEvent {
     GameStarted { turn: u8, cards: u64 },
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize, Debug)]
 pub enum CarboClientEvent {
     StartGame,
     PlayCard { card: u64 },

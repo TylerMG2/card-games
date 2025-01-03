@@ -1,6 +1,7 @@
 use shared::{traits::{NetworkingSend, ToFromBytes}, types};
 use tokio::sync::mpsc::UnboundedSender;
 
+#[derive(Debug)]
 pub struct Connection {
     pub id: uuid::Uuid,
     pub sender: Option<UnboundedSender<Vec<u8>>>,
@@ -22,7 +23,6 @@ pub struct ServerRoom {
 
 impl ServerRoom {
     pub fn add_connection(&mut self, tx: UnboundedSender<Vec<u8>>, id: uuid::Uuid) -> Option<usize> {
-
         let mut first_free: Option<usize> = None;
 
         // Look for player id while keeping track of the first free slot

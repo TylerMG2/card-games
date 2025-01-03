@@ -2,9 +2,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use axum::{extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Router};
 use serde::Deserialize;
 
-use shared::{logic::handle_client_event, traits::{Networking, NetworkingSend, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
+use shared::{logic::handle_client_event, traits::{Networking, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
 use tokio::{net::TcpListener, sync::{mpsc::UnboundedSender, RwLock}, time::timeout};
 use futures::{sink::SinkExt, stream::{SplitStream, StreamExt}};
+use types::ServerRoom;
 
 mod types;
 
@@ -42,20 +43,28 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     let id = {
         match uuid::Uuid::parse_str(&query.id) {
             Ok(id) => id,
-            Err(_) => return close_room_if_empty(&state, &query.code).await,
+            Err(_) => return,
         }
     };
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let (mut sender, mut receiver) = socket.split();
-    println!("{} attemping to connect to {}", query.id, query.code);
+    println!("({}) {} attempting to connect", query.code, query.id);
+
+    let mut send_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if sender.send(Message::Binary(msg)).await.is_err() {
+                break;
+            }
+        }
+    });
 
     let player_index = match handle_connection(&state, &query, tx, id, &mut receiver).await {
         Some(player_index) => player_index,
-        None => return,
+        None => return, // TODO: Handle failed connection (close room if needed)
     };
 
-    println!("{} connected to {}", query.id, query.code);
+    println!("({}) {} connected", query.code, query.id);
 
     let recv_state = state.clone();
     let recv_query = query.clone();
@@ -72,27 +81,20 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
                         },
                     };
                     let event = ClientEvent::from_bytes(&data);
+                    println!("({}) Received {:?} from {}", recv_query.code, event, recv_query.id);
                     
+                    // TODO: Validate the event
                     handle_client_event(&mut room.room, &event, &room.connections, player_index);
 
                     // Special case for leaving the room
                     if let ClientEvent::CommonEvent(CommonClientEvent::LeaveRoom) = event {
                         room.connections[player_index] = None;
-                        println!("{} left {}", recv_query.id, recv_query.code);
+                        println!("({}) {} left the room", recv_query.code, recv_query.id);
                     }
                 },
                 Ok(Message::Close(_)) => break,
                 Ok(_) => continue,
-                Err(_) => break,
-            }
-        }
-    });
-
-    let mut send_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if sender.send(Message::Binary(msg)).await.is_err() {
-                println!("Failed to send message to {}", query.id);
-                break;
+                Err(_) => break, // TODO: More explicit error handling
             }
         }
     });
@@ -105,70 +107,68 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 
     // Disconnect
     let mut rooms = state.rooms.write().await;
-    let room = rooms.get_mut(&query.code).unwrap();
+    if let Some(room) = rooms.get_mut(&query.code) {
+        if let Some(Some(connection)) = room.connections.get_mut(player_index) {
+            connection.sender = None;
+            room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected { player_index: player_index as u8 }));
+            println!("({}) {} disconnected", query.code, query.id);
+        }
 
-    // If the connection wasn't removed (player leaving the room) then disconnect the player
-    if let Some(Some(connection)) = room.connections.get_mut(player_index) {
-        connection.sender = None;
-        room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected { player_index: player_index as u8 }));
-        println!("{} disconnected from {}", id, query.code);
-    }
-
-    close_room_if_empty(&state, &query.code).await;
-}
-
-async fn close_room_if_empty(state: &AppState, code: &str) {
-    let mut rooms = state.rooms.write().await;
-    if let Some(room) = rooms.get_mut(code) {
-        if room.connections.iter().all(|connection| {
-            match connection {
-                Some(connection) => connection.sender.is_none(),
-                None => true,
-            }
-        }) {
-            rooms.remove(code);
-            println!("Room {} closed", code);
+        // If the connection wasn't removed (player leaving the room) then disconnect the player
+        if is_room_empty(room) {
+            rooms.remove(&query.code);
+            println!("({}) Room closed", query.code);
         }
     }
 }
 
+fn is_room_empty(room: &ServerRoom) -> bool {
+    room.connections.iter().all(|connection| {
+        match connection {
+            Some(connection) => connection.sender.is_none(),
+            None => true,
+        }
+    })
+}
+
+// Attempt to automatically reconnect the player if they already have a connection
+// otherwise wait for the player to send their name.
 async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedSender<Vec<u8>>, id: uuid::Uuid, receiver: &mut SplitStream<WebSocket>) -> Option<usize> {
-    let player_index = {
-        let mut rooms = state.rooms.write().await;
-        let room = rooms.entry(query.code.clone()).or_insert(types::ServerRoom::default());
+    let mut rooms = state.rooms.write().await;
+    let room = rooms.entry(query.code.clone()).or_insert(types::ServerRoom::default());
 
-        if let Some(player_index) = room.add_connection(tx, id) {
-            let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room, current_player: player_index as u8 });
-            room.connections.send_to(&mut room.room, join_event, player_index);
+    if let Some(player_index) = room.add_connection(tx, id) {
+        let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room, current_player: player_index as u8 });
+        room.connections.send_to(&mut room.room, join_event, player_index);
 
-            // Check if the player is reconnecting
-            if let Some(Some(_)) = room.room.common.players.get_mut(player_index) {
-                room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }));
-                return Some(player_index);
-            }
-            player_index
-        } else {
-            println!("{} failed to connect to {}, REASON: Room full", query.id, query.code);
-            return None;
-        }
-    };
-    
-    // If we get here it means the player is connecting for the first time
-    match timeout(Duration::from_secs(300), wait_for_name_and_code(receiver)).await {
-        Ok(Some(name)) => {
-            let mut rooms = state.rooms.write().await;
-            let room = rooms.get_mut(&query.code).unwrap();
-            room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }));
+        // Check if the player is reconnecting
+        if let Some(Some(_)) = room.room.common.players.get_mut(player_index) {
+            println!("({}) {} reconnected", query.code, query.id);
+            room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }));
             Some(player_index)
-        },
-        Ok(None) => {
-            println!("{} failed to connect to {}, REASON: Player disconnected", query.id, query.code);
-            None
-        },
-        Err(_) => {
-            println!("{} failed to connect to {}, REASON: Timed out", query.id, query.code);
-            None
-        },
+        } else {
+            drop(rooms); // Drop the lock to prevent deadlock
+
+            match timeout(Duration::from_secs(300), wait_for_name_and_code(receiver)).await {
+                Ok(Some(name)) => {
+                    let mut rooms = state.rooms.write().await;
+                    let room = rooms.get_mut(&query.code).unwrap();
+                    room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }));
+                    Some(player_index)
+                },
+                Ok(None) => {
+                    println!("({}) {} failed to connect, REASON: Invalid name", query.code, query.id);
+                    None
+                },
+                Err(_) => {
+                    println!("({}) {} failed to connect, REASON: Timeout", query.code, query.id);
+                    None
+                },
+            }
+        }
+    } else {
+        println!("({}) {} failed to connect, REASON: Room is full", query.code, query.id);
+        None
     }
 }
 
