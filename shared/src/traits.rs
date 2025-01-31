@@ -68,6 +68,8 @@ where
     fn send_to_all(&self, room: &mut types::Room, event: types::ServerEvent) {
         logic::handle_server_event(room, &event, None, true);
 
+        println!("Sending {:?} to all", event);
+
         for connection in self.iter() {
             if let Some(connection) = connection {
                 connection.send(&event);
@@ -77,6 +79,8 @@ where
 
     fn send_to_all_except(&self, room: &mut types::Room, event: types::ServerEvent, except: usize) {
         logic::handle_server_event(room, &event, None, true);
+
+        println!("Sending {:?} to all except {}", event, except);
 
         for (index, connection) in self.iter().enumerate() {
             if index != except {
@@ -88,6 +92,8 @@ where
     }
 
     fn send_to(&self, room: &mut types::Room, event: types::ServerEvent, player_index: usize) {
+        println!("Sending {:?} to {}", event, player_index);
+
         if let Some(Some(connection)) = self.get(player_index) {
             connection.send(&event);
         } else {
@@ -105,8 +111,8 @@ where
 
 // Used for client side instant updates
 //
-// This is useful is alot of games for instant feedback, for example, in a card game like tycoon millionaire, the client
-// the outcome of playing a card is deterministic and the client can update its state instantly without waiting for the server
+// This is useful is alot of games for instant feedback, for example, in a card game like tycoon millionaire, the outcome
+// of playing a card is deterministic and the client can update its state instantly without waiting for the server
 impl Networking for types::ClientConnection {
     fn send_to_all(&self, _room: &mut types::Room, _event: types::ServerEvent) { } // Do nothing
     fn send_to_all_except(&self, _room: &mut types::Room, _event: types::ServerEvent, _except: usize) { } // Do nothing

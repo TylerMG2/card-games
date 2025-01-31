@@ -74,6 +74,7 @@ pub fn Room() -> impl IntoView {
                     return;
                 }
             };
+            ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
             // On error
             let onerror_callback = Closure::<dyn FnMut(_)>::new(move |e: ErrorEvent| {
@@ -100,13 +101,16 @@ pub fn Room() -> impl IntoView {
 
             // On message
             let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-                if let Ok(bytes) = e.data().dyn_into::<js_sys::Uint8Array>() {
+                if let Ok(buffer) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
+                    let bytes = js_sys::Uint8Array::new(&buffer);
                     let event = types::ServerEvent::from_bytes(&bytes.to_vec());
                     console_log(format!("Received event: {:?}", event).as_str());
 
                     set_room.update(|room| {
                         logic::handle_server_event(room, &event, Some(room.common.player_index as usize), false);
                     });
+                } else {
+                    console_log("Received unknown message");
                 }
             });
             ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));

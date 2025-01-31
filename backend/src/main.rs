@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use axum::{extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Router};
 use serde::Deserialize;
 
-use shared::{logic::handle_client_event, traits::{Networking, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
+use shared::{logic::{handle_client_event, validate_client_event}, traits::{Networking, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
 use tokio::{net::TcpListener, sync::{mpsc::UnboundedSender, RwLock}, time::timeout};
 use futures::{sink::SinkExt, stream::{SplitStream, StreamExt}};
 use types::ServerRoom;
@@ -84,8 +84,12 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
                     println!("({}) Received {:?} from {}", recv_query.code, event, recv_query.id);
                     
                     // TODO: Validate the event
-                    handle_client_event(&mut room.room, &event, &room.connections, player_index);
-
+                    if validate_client_event(&room.room, &event, player_index) {
+                        handle_client_event(&mut room.room, &event, &room.connections, player_index);
+                    } else {
+                        println!("({}) {} sent an invalid event: {:?}", recv_query.code, recv_query.id, event);
+                    }
+                    
                     // Special case for leaving the room
                     if let ClientEvent::CommonEvent(CommonClientEvent::LeaveRoom) = event {
                         room.connections[player_index] = None;
