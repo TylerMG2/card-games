@@ -7,6 +7,12 @@ pub mod components {
     pub mod room;
 }
 
+pub mod ui {
+    pub mod button;
+    pub mod panel;
+    pub mod input;
+}
+
 fn main() {
     console_error_panic_hook::set_once();
     leptos::mount::mount_to_body(App)

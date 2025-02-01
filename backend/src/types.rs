@@ -8,16 +8,15 @@ pub struct Connection {
 }
 
 impl NetworkingSend for Connection {
-    fn send(&self, event: &types::ServerEvent) -> Result<(), ()> {
+    fn send(&mut self, event: &types::ServerEvent) {
         if let Some(sender) = &self.sender {
-            return sender.send(event.to_bytes()).map_err(|_| ());
+            if sender.send(event.to_bytes()).is_err() {
+                // Should force rx.recv() to return None as long as there are no other references to the sender
+                println!("Failed to send event to player {}, closing connection", self.id);
+                self.sender = None;
+            }
         }
-        return Err(());
-    }
-
-    fn close(&mut self) {
-        // Should force rx.recv() to return None as long as there are no other references to the sender
-        self.sender = None; 
+        // Player already disconnected
     }
 }
 

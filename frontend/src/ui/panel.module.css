@@ -1,0 +1,16 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 8px;
+    margin: 8px;
+    background-color: var(--surface-1);
+    box-shadow: 0px 8px 0px 0px var(--surface-1),
+				-8px 0 0px 0px var(--surface-1),
+				8px 0 0px 0px var(--surface-1),
+				0px -8px 0px 0px var(--surface-1),
+				-8px 8px 0px 0px rgba(0,0,0,0.4),
+				8px 8px 0px 0px rgba(0,0,0,0.4),
+				0px 16px 0px 0px rgba(0,0,0,0.4); 
+}

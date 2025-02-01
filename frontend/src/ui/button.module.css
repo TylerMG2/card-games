@@ -1,0 +1,45 @@
+.button {
+    --button-color: var(--primary-2);
+    --button-shadow: var(--primary-1);
+    margin: 8px 8px 16px 8px;
+    border: none;
+    color: var(--text-1);
+    padding: 4px 8px;
+    font-size: 24px;
+
+    background-color: var(--button-color);
+    box-shadow: 0px 8px 0px 0px var(--button-color),
+				-8px 0 0px 0px var(--button-color),
+				8px 0 0px 0px var(--button-color),
+				0px -8px 0px 0px var(--button-color),
+				-8px 8px 0px 0px var(--button-shadow),
+				8px 8px 0px 0px var(--button-shadow),
+				0px 16px 0px 0px var(--button-shadow);
+}
+
+.button:hover {
+    cursor: pointer;
+}
+
+.button:active {
+    transform: translateY(8px);
+	box-shadow: 0px 8px 0px 0px var(--button-color),
+				-8px 0 0px 0px var(--button-color),
+				8px 0 0px 0px var(--button-color),
+				0px -8px 0px 0px var(--button-color);
+}
+
+.red {
+    --button-color: var(--red-2);
+    --button-shadow: var(--red-1);
+}
+
+.blue {
+    --button-color: var(--surface-5);
+    --button-shadow: var(--surface-4);
+}
+
+.green {
+    --button-color: var(--primary-2);
+    --button-shadow: var(--primary-0);
+}

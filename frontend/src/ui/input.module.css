@@ -1,0 +1,17 @@
+.input {
+    margin: 8px 0px;
+    border: none;
+    color: var(--surface-1);
+    padding: 4px 8px;
+    font-size: 24px;
+
+    background-color: var(--text-1);
+    box-shadow: 0px 8px 0px 0px var(--text-1),
+				-8px 0 0px 0px var(--text-1),
+				8px 0 0px 0px var(--text-1),
+				0px -8px 0px 0px var(--text-1)
+}
+
+.input:focus {
+    outline: none;
+}

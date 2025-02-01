@@ -1,0 +1,62 @@
+:root {
+    --surface-0: #170E19;
+    --surface-1: #2F213B;
+    --surface-2: #433A60;
+    --surface-3: #4F5277;
+    --surface-4: #65738C;
+    --surface-5: #7C94A1;
+
+    --text-0: #A0B9BA;
+    --text-1: #C0D1CC;
+
+    --primary-0: #213B25;
+    --primary-1: #3A604A;
+    --primary-2: #4F7754;
+
+    --red-0: #3B2137;
+    --red-1: #603B3A;
+    --red-2: #775C4F;
+}
+
+body {
+    background-color: var(--surface-0);
+    color: var(--text-1);
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: "Pixelify Sans", sans-serif;
+}
+
+.d-flex {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.gap-8 {
+    gap: 8px;
+}
+
+.gap-16 {
+    gap: 16px;
+}
+
+.gap-24 {
+    gap: 24px;
+}
+
+.gap-32 {
+    gap: 32px;
+}

@@ -58,8 +58,7 @@ pub trait Networking {
 }
 
 pub trait NetworkingSend {
-    fn send(&self, event: &types::ServerEvent) -> Result<(), ()>;
-    fn close(&mut self);
+    fn send(&mut self, event: &types::ServerEvent);
 }
 
 impl<T> Networking for [Option<T>; MAX_PLAYERS] 
@@ -73,7 +72,7 @@ where
 
         for connection in self.iter_mut() {
             if let Some(connection) = connection {
-                send(connection, &event);
+                connection.send(&event);
             }
         }
     }
@@ -86,7 +85,7 @@ where
         for (index, connection) in self.iter_mut().enumerate() {
             if index != except {
                 if let Some(connection) = connection {
-                    send(connection, &event);
+                    connection.send(&event);
                 }
             }
         }
@@ -96,7 +95,7 @@ where
         println!("Sending {:?} to {}", event, player_index);
 
         if let Some(Some(connection)) = self.get_mut(player_index) {
-            send(connection, &event);
+            connection.send(&event);
         } else {
             println!("Tried to send to a connection that doesn't exist");
             return;
@@ -107,16 +106,6 @@ where
 
     fn send_to_all_except_origin(&mut self, room: &mut types::Room, event: types::ServerEvent, origin: usize) {
         self.send_to_all_except(room, event, origin);
-    }
-}
-
-fn send(connection: &mut impl NetworkingSend, event: &types::ServerEvent) {
-    match connection.send(event) {
-        Ok(_) => { },
-        Err(_) => {
-            println!("Failed to send event to player, disconnecting them.");
-            connection.close(); // Disconnect the player
-        }
     }
 }
 

@@ -55,6 +55,7 @@ pub struct CommonPlayer {
 // Event types
 //
 
+// TODO: Use a macro to generate the client events
 // If I use the form <game::GameRoom as GameLogic>::GameServerEvent, I can probably write a macro to generate the
 // Room, Player and Event types rather then having to update each one each time I add a new game
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
@@ -78,6 +79,7 @@ pub enum CommonServerEvent {
     GameChanged { game: GameType },
 }
 
+// TODO: Use a macro to generate the client events
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub enum ClientEvent {
     CommonEvent(CommonClientEvent),
@@ -88,6 +90,7 @@ pub enum ClientEvent {
     Unknown,
 }
 
+// TODO: Reset current game action
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CommonClientEvent {
     JoinRoom { name: [u8; MAX_NAME_LENGTH] },

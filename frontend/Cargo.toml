@@ -14,3 +14,4 @@ leptos = { version = "0.7.2", features = ["csr"] }
 leptos_router = "0.7.2"
 console_error_panic_hook = "0.1.7"
 web-sys = "0.3.76"
+stylance = "0.5.4"
