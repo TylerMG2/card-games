@@ -59,9 +59,22 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
         }
     });
 
+    // Important for handle_connection to take ownership of receiver so no other references are held
     let player_index = match handle_connection(&state, &query, tx, id, &mut receiver).await {
-        Some(player_index) => player_index,
-        None => return, // TODO: Handle failed connection (close room if needed)
+        Some(player_index) => {
+            let mut rooms = state.rooms.write().await;
+
+            // I wonder if theres a nice way to refactor this since this should all be guaranteed to exist
+            if let Some(room) = rooms.get_mut(&query.code) {
+                let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room, current_player: player_index as u8 });
+                room.connections.send_to(&mut room.room, join_event, player_index);
+            } else {
+                // This should never happen
+                return;
+            }
+            player_index
+        },
+        None => return, // TODO: Handle failed connection (close room if needed), might want to refactor a little
     };
 
     println!("({}) {} connected", query.code, query.id);
@@ -72,6 +85,8 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
         while let Some(msg) = receiver.next().await {
             match msg {
                 Ok(Message::Binary(data)) => {
+                    if data.len() < 1 || data.len() > 1000 { continue; } // Nothing should be this small or large
+
                     let mut rooms = recv_state.rooms.write().await;
                     let room = match rooms.get_mut(&recv_query.code) {
                         Some(room) => room,
@@ -83,9 +98,9 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
                     let event = ClientEvent::from_bytes(&data);
                     println!("({}) Received {:?} from {}", recv_query.code, event, recv_query.id);
                     
-                    // TODO: Validate the event
+                    // We don't need to validate the player_id since its associated with the connection
                     if validate_client_event(&room.room, &event, player_index) {
-                        handle_client_event(&mut room.room, &event, &room.connections, player_index);
+                        handle_client_event(&mut room.room, &event, &mut room.connections, player_index);
                     } else {
                         println!("({}) {} sent an invalid event: {:?}", recv_query.code, recv_query.id, event);
                     }
@@ -112,13 +127,15 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     // Disconnect
     let mut rooms = state.rooms.write().await;
     if let Some(room) = rooms.get_mut(&query.code) {
+
+        // If the connection wasn't removed (player leaving the room) then disconnect the player
         if let Some(Some(connection)) = room.connections.get_mut(player_index) {
             connection.sender = None;
             room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected { player_index: player_index as u8 }));
             println!("({}) {} disconnected", query.code, query.id);
         }
 
-        // If the connection wasn't removed (player leaving the room) then disconnect the player
+        // Close the room if no players are left
         if is_room_empty(room) {
             rooms.remove(&query.code);
             println!("({}) Room closed", query.code);
@@ -142,13 +159,10 @@ async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedS
     let room = rooms.entry(query.code.clone()).or_insert(types::ServerRoom::default());
 
     if let Some(player_index) = room.add_connection(tx, id) {
-        let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room, current_player: player_index as u8 });
-        room.connections.send_to(&mut room.room, join_event, player_index);
-
         // Check if the player is reconnecting
         if let Some(Some(_)) = room.room.common.players.get_mut(player_index) {
             println!("({}) {} reconnected", query.code, query.id);
-            room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }));
+            room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }), player_index);
             Some(player_index)
         } else {
             drop(rooms); // Drop the lock to prevent deadlock
@@ -157,7 +171,7 @@ async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedS
                 Ok(Some(name)) => {
                     let mut rooms = state.rooms.write().await;
                     let room = rooms.get_mut(&query.code).unwrap();
-                    room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }));
+                    room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }), player_index);
                     Some(player_index)
                 },
                 Ok(None) => {
@@ -187,6 +201,7 @@ async fn wait_for_name_and_code(receiver: &mut SplitStream<WebSocket>) -> Option
             Message::Binary(data) => {
                 let event = ClientEvent::from_bytes(&data);
                 if let ClientEvent::CommonEvent(CommonClientEvent::JoinRoom { name }) = event {
+                    // TODO: Validate and sanitize the name
                     return Some(name);
                 }
             }

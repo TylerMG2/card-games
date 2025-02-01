@@ -67,7 +67,7 @@ pub enum ServerEvent {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)] //TODO: Clean up derives
 pub enum CommonServerEvent {
     RoomJoined { new_room: Room, current_player: u8 },
     PlayerJoined { name: [u8; MAX_NAME_LENGTH], player_index: u8 },
@@ -93,4 +93,5 @@ pub enum CommonClientEvent {
     JoinRoom { name: [u8; MAX_NAME_LENGTH] },
     LeaveRoom,
     ChangeGame { game: GameType },
+    Disconnect,
 }

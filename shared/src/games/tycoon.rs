@@ -63,17 +63,17 @@ impl traits::GameLogic for TycoonRoom {
         }
     }
 
-    fn handle_client_game_event(room: &mut types::Room, event: &Self::GameClientEvent, connections: &impl traits::Networking, player_index: usize) {
+    fn handle_client_game_event(room: &mut types::Room, event: &Self::GameClientEvent, connections: &mut impl traits::Networking, player_index: usize) {
         if Self::validate_client_game_event(room, event, player_index) {
             match event {
                 TycoonClientEvent::StartGame => {
                     todo!("Handle game started");
                 },
                 TycoonClientEvent::PlayCards { cards } => {
-                    connections.send_to_all_game_event_deterministic::<Self>(room, TycoonServerEvent::CardsPlayed { cards: *cards }, player_index);
+                    connections.send_to_all_except_origin_game_event::<Self>(room, TycoonServerEvent::CardsPlayed { cards: *cards }, player_index);
                 },
                 TycoonClientEvent::Pass => {
-                    connections.send_to_all_game_event_deterministic::<Self>(room, TycoonServerEvent::Pass, player_index);
+                    connections.send_to_all_except_origin_game_event::<Self>(room, TycoonServerEvent::Pass, player_index);
                 },
                 TycoonClientEvent::ExchangeCards { cards } => {
                     todo!("Handle exchange cards");

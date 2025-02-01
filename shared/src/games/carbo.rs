@@ -48,7 +48,7 @@ impl traits::GameLogic for CarboRoom {
         }
     }
 
-    fn handle_client_game_event(room: &mut types::Room, event: &Self::GameClientEvent, connections: &impl traits::Networking, player_index: usize) {
+    fn handle_client_game_event(room: &mut types::Room, event: &Self::GameClientEvent, connections: &mut impl traits::Networking, player_index: usize) {
         if Self::validate_client_game_event(room, event, player_index) {
             match event {
                 CarboClientEvent::StartGame => {

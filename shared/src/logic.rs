@@ -85,14 +85,23 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
                 },
                 CommonClientEvent::LeaveRoom => true,
                 CommonClientEvent::ChangeGame { game: _ } => room.common.host as usize == player_index && room.common.state == types::RoomState::Lobby,
+                CommonClientEvent::Disconnect => true,
             }
         },
         ClientEvent::Unknown => false,
     }
 }
 
-pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connections: &impl Networking, player_index: usize) {
+// The room should never be mutated in this function, in order to keep the client and server in sync while minimizing data transfer,
+// all that should take place here is converting client events to server events where then the room is mutated by the server and client.
+// This means we have a central place where both the client and server update their state from the same events and same logic.
+// We can now send way less data between the client and server since the server can send the client the events that caused the state change.
+// For example playing cards in a card game could have much greater impact on the game state then just the cards played, traditionally, the server
+// would have to send a game state containing all the things that could have changed, but now the server can just send the client the event.
+// This also means that the client can now predict the game state without having to wait for the server to send the game state.
+pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connections: &mut impl Networking, player_index: usize) {
     match event {
+        //TODO: Ignore events that are not for the current game
         ClientEvent::TycoonEvent(event) => {
             tycoon::TycoonRoom::handle_client_game_event(room, event, connections, player_index);
         },
@@ -103,11 +112,14 @@ pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connecti
             match event {
                 CommonClientEvent::JoinRoom { name: _ } => {}, // Handled on connection
                 CommonClientEvent::LeaveRoom => {
-                    connections.send_to_all_deterministic(room, ServerEvent::CommonEvent(CommonServerEvent::PlayerLeft { player_index: player_index as u8 }), player_index);
+                    connections.send_to_all_except_origin(room, ServerEvent::CommonEvent(CommonServerEvent::PlayerLeft { player_index: player_index as u8 }), player_index);
                 },
                 CommonClientEvent::ChangeGame { game } => {
-                    connections.send_to_all_deterministic(room, ServerEvent::CommonEvent(CommonServerEvent::GameChanged { game: *game }), player_index);
+                    connections.send_to_all_except_origin(room, ServerEvent::CommonEvent(CommonServerEvent::GameChanged { game: *game }), player_index);
                 },
+                CommonClientEvent::Disconnect => {
+                    connections.send_to_all_except_origin(room, ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected { player_index: player_index as u8 }), player_index);
+                }
             }
         },
         ClientEvent::Unknown => {},

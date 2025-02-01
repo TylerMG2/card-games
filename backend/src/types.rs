@@ -8,10 +8,16 @@ pub struct Connection {
 }
 
 impl NetworkingSend for Connection {
-    fn send(&self, event: &types::ServerEvent) {
+    fn send(&self, event: &types::ServerEvent) -> Result<(), ()> {
         if let Some(sender) = &self.sender {
-            sender.send(event.to_bytes()).unwrap(); // TODO: Handle error (I think its rare though)
+            return sender.send(event.to_bytes()).map_err(|_| ());
         }
+        return Err(());
+    }
+
+    fn close(&mut self) {
+        // Should force rx.recv() to return None as long as there are no other references to the sender
+        self.sender = None; 
     }
 }
 

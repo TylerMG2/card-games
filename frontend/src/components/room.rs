@@ -48,7 +48,6 @@ impl RoomContext {
     }
 }
 
-
 #[component]
 pub fn Room() -> impl IntoView {
     let id = get_player_id();
@@ -62,6 +61,8 @@ pub fn Room() -> impl IntoView {
 
     // TODO: I think we need to clean up the websocket connection when the component is unmounted
     Effect::new(move |_| {
+        // TODO: We should probably add some better reconnect logic to avoid spamming the server
+
         if state.get() != WebsocketState::Disconnected { return; }
 
         if let Some(code) = code.get() {
@@ -103,12 +104,19 @@ pub fn Room() -> impl IntoView {
             let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
                 if let Ok(buffer) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
                     let bytes = js_sys::Uint8Array::new(&buffer);
-                    let event = types::ServerEvent::from_bytes(&bytes.to_vec());
+                    let mut vec = vec![0; bytes.length() as usize]; 
+                    bytes.copy_to(&mut vec);
+                    let event = types::ServerEvent::from_bytes(&vec);
                     console_log(format!("Received event: {:?}", event).as_str());
 
                     set_room.update(|room| {
                         logic::handle_server_event(room, &event, Some(room.common.player_index as usize), false);
                     });
+
+                    // Room joined event
+                    if let types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { new_room: _, current_player: _ }) = event {
+                        // TODO: Update a signal to indicate that the player has joined the room
+                    }
                 } else {
                     console_log("Received unknown message");
                 }
@@ -138,7 +146,7 @@ pub fn Room() -> impl IntoView {
     };
 
     let join_game = {
-        let context = context.clone();
+        let context = context.clone(); // Should be fine since its just a bunch of signals
         move |_: MouseEvent| {
             let event = types::ClientEvent::CommonEvent(types::CommonClientEvent::JoinRoom {
                 name: [1; 20],
@@ -152,26 +160,29 @@ pub fn Room() -> impl IntoView {
     // Return a view rendering a form if the code is not set, otherwise render a form with name input is not connected, otherwise render the room
     view! {
         <div>
+        //TODO: We need a check to see if the player is in the room (post join_game) and render the room if they are
+        //this render should choose different components based on the game type: room.common.game
             {move || {
                 match state.get() {
-                WebsocketState::Disconnected => {
-                    view! { <div> {"Disconnected"} </div> }.into_any()
-                },
-                WebsocketState::Connecting => {
-                    view! { <div> {"Connecting"} </div> }.into_any()
-                },
-                WebsocketState::Failed => {
-                    view! { <div> {"Failed to connect, something went really wrong..."} </div> }.into_any()
-                },
-                WebsocketState::Connected => {
-                    view! {
-                        <div>
-                            <div> {"Connected"} </div>
-                            <button on:click={join_game.clone()}> {"Join Game"} </button>
-                        </div>
-                    }.into_any()
-                },
-            }}}
+                    WebsocketState::Disconnected => {
+                        view! { <div> {"Disconnected"} </div> }.into_any()
+                    },
+                    WebsocketState::Connecting => {
+                        view! { <div> {"Connecting"} </div> }.into_any()
+                    },
+                    WebsocketState::Failed => {
+                        view! { <div> {"Failed to connect, something went really wrong..."} </div> }.into_any()
+                    },
+                    WebsocketState::Connected => {
+                        view! {
+                            <div>
+                                <div> {"Connected"} </div>
+                                <button on:click={join_game.clone()}> {"Join Game"} </button>
+                            </div>
+                        }.into_any()
+                    },
+                }
+            }}
         </div>
     }
 }
