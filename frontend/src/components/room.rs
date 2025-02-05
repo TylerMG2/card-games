@@ -1,7 +1,5 @@
 use futures::channel::mpsc::UnboundedSender;
-use futures::SinkExt;
 use futures_util::StreamExt;
-use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
@@ -10,7 +8,7 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::{js_sys, wasm_bindgen::{prelude::Closure, JsCast}, ErrorEvent, MessageEvent, WebSocket};
 use gloo::storage::{LocalStorage, Storage, errors::StorageError};
 
-use crate::ui::{button::{Button, ButtonType}, input::Input, panel::Panel};
+use crate::components::{games::game::Game, join_room::JoinRoom};
 
 #[derive(Clone, PartialEq)]
 pub enum WebsocketState {
@@ -54,10 +52,10 @@ impl RoomContext {
 pub fn Room() -> impl IntoView {
     let id = get_player_id();
     let (code, set_code) = signal(None);
-    let name = RwSignal::new("".to_string());
     let (state, set_state) = signal(WebsocketState::Disconnected);
     let (room, set_room) = signal(types::Room::default());
     let (sender, set_sender) = signal(None);
+    let (in_room, set_in_room) = signal(false);
     
     let params = use_params_map();
     set_code.set(params.read().get("code"));
@@ -82,7 +80,7 @@ pub fn Room() -> impl IntoView {
 
             // On error
             let onerror_callback = Closure::<dyn FnMut(_)>::new(move |e: ErrorEvent| {
-                console_log(format!("Error: {:?}", e).as_str());
+                set_state.set(WebsocketState::Failed);
             });
             ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
             onerror_callback.forget();
@@ -98,7 +96,8 @@ pub fn Room() -> impl IntoView {
             // On close
             let onclose_callback = Closure::<dyn FnMut()>::new(move || {
                 console_log("Disconnected");
-                set_state.set(WebsocketState::Disconnected);
+                set_state.set(WebsocketState::Failed); // TODO: this should only really be failed on error, not on close
+                set_in_room.set(false);
             });
             ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
             onclose_callback.forget();
@@ -121,7 +120,7 @@ pub fn Room() -> impl IntoView {
 
                     // Room joined event
                     if let types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { new_room: _, current_player: _ }) = event {
-                        // TODO: Update a signal to indicate that the player has joined the room
+                        set_in_room.set(true);
                     }
                 } else {
                     console_log("Received unknown message");
@@ -150,51 +149,30 @@ pub fn Room() -> impl IntoView {
         set_state,
         sender,
     };
-
-    let join_game = {
-        move |_: MouseEvent| {
-            let name_string = name.get();
-            let name_slice = name_string.as_bytes();
-
-            let mut name_bytes = [0u8; 20];
-            let len = name_slice.len().min(20);
-            name_bytes[..len].copy_from_slice(&name_slice[..len]);
-
-            let event = types::ClientEvent::CommonEvent(types::CommonClientEvent::JoinRoom {
-                name: name_bytes
-            });
-            context.send_event(event);
-        }
-    };
+    
 
     provide_context(context);
 
-    // Return a view rendering a form if the code is not set, otherwise render a form with name input is not connected, otherwise render the room
     view! {
-        //TODO: We need a check to see if the player is in the room (post join_game) and render the room if they are
-        //this render should choose different components based on the game type: room.common.game
         {move || {
             match state.get() {
                 WebsocketState::Disconnected => {
-                    view! { <div> {"Disconnected"} </div> }.into_any()
+                    view! { <div> {"Disconnected"} </div> }.into_any() // TODO: Add a reconnect button
                 },
                 WebsocketState::Connecting => {
-                    view! { <div> {"Connecting"} </div> }.into_any()
+                    view! { <div> {"Connecting"} </div> }.into_any() // TODO: Fix ui
                 },
                 WebsocketState::Failed => {
-                    view! { <div> {"Failed to connect, something went really wrong..."} </div> }.into_any()
+                    view! { <div> {"Failed to connect, something went really wrong..."} </div> }.into_any() // TODO: Fix ui
                 },
                 WebsocketState::Connected => {
                     view! {
-                        <div style="display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: center;">
-                            <Panel level=1>
-                                <div class="d-flex flex-column gap-16">
-                                    <div style="font-size: 48px;"> {"Join Room"} </div>
-                                    <Input value={name.clone()} placeholder={"Enter name".to_string()} max_length=20/>
-                                    <Button on_click={join_game.clone()} button_type={ButtonType::Green} style="width: 100%".to_owned()> {"Join Room"} </Button>
-                                </div>
-                            </Panel>
-                        </div>
+                        <Show 
+                            when=move || in_room.get() 
+                            fallback=|| view! { <JoinRoom /> }
+                        >
+                            <Game />
+                        </Show>
                     }.into_any()
                 },
             }
@@ -202,7 +180,8 @@ pub fn Room() -> impl IntoView {
     }
 }
 
-// Function to check if their is a player id in local storage, if not create one and store it
+
+// Check if their is a player id in local storage, if not create one and store it
 pub fn get_player_id() -> uuid::Uuid {
     let storage: Result<String, StorageError> = LocalStorage::get("player_id");
     match storage {

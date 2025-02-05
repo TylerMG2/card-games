@@ -16,6 +16,19 @@
     --red-0: #3B2137;
     --red-1: #603B3A;
     --red-2: #775C4F;
+
+
+    --pixel-border: 0px 8px 0px 0px var(--button-colour),
+                    -8px 0 0px 0px var(--button-colour),
+                    8px 0 0px 0px var(--button-colour),
+                    0px -8px 0px 0px var(--button-colour);
+    --pixel-border-with-shadow: 0px 8px 0px 0px var(--button-colour),
+                                -8px 0 0px 0px var(--button-colour),
+                                8px 0 0px 0px var(--button-colour),
+                                0px -8px 0px 0px var(--button-colour),
+                                -8px 8px 0px 0px var(--button-shadow),
+                                8px 8px 0px 0px var(--button-shadow),
+                                0px 16px 0px 0px var(--button-shadow);
 }
 
 body {
@@ -29,8 +42,9 @@ body {
 }
 
 * {
+    --test: 64px;
     box-sizing: border-box;
-    margin: 0;
+    margin: var(--test-test);
     padding: 0;
     font-family: "Pixelify Sans", sans-serif;
 }
@@ -59,4 +73,105 @@ body {
 
 .gap-32 {
     gap: 32px;
+}
+
+//
+// Button
+//
+
+button {
+    --button-colour: var(--primary-2);
+    --button-shadow: var(--primary-1);
+    margin: 8px 8px 16px 8px;
+    border: none;
+    color: var(--text-1);
+    padding: 4px 8px;
+    font-size: 24px;
+
+    background-color: var(--button-colour);
+    box-shadow: 0px 8px 0px 0px var(--button-colour),
+                -8px 0 0px 0px var(--button-colour),
+                8px 0 0px 0px var(--button-colour),
+                0px -8px 0px 0px var(--button-colour),
+                -8px 8px 0px 0px var(--button-shadow),
+                8px 8px 0px 0px var(--button-shadow),
+                0px 16px 0px 0px var(--button-shadow);
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+button:hover {
+    cursor: pointer;
+}
+
+button:active {
+    transform: translateY(8px);
+	box-shadow: 0px 8px 0px 0px var(--button-colour),
+                -8px 0 0px 0px var(--button-colour),
+                8px 0 0px 0px var(--button-colour),
+                0px -8px 0px 0px var(--button-colour);
+}
+
+button:disabled {
+    transform: translateY(8px);
+    filter: grayscale(0.5);
+    cursor: not-allowed;
+    box-shadow: 0px 8px 0px 0px var(--button-colour),
+                -8px 0 0px 0px var(--button-colour),
+                8px 0 0px 0px var(--button-colour),
+                0px -8px 0px 0px var(--button-colour);
+}
+
+.btn-red {
+    --button-colour: var(--red-2);
+    --button-shadow: var(--red-1);
+}
+.btn-blue {
+    --button-colour: var(--surface-5);
+    --button-shadow: var(--surface-4);
+}
+.btn-green {
+    --button-colour: var(--primary-2);
+    --button-shadow: var(--primary-0);
+}
+
+//
+// Panel
+//
+.panel {
+    --panel-colour: var(--surface-1);
+    padding: 16px;
+    margin: 8px;
+    background-color: var(--panel-colour);
+    box-shadow: 0px 8px 0px 0px var(--panel-colour),
+				-8px 0 0px 0px var(--panel-colour),
+				8px 0 0px 0px var(--panel-colour),
+				0px -8px 0px 0px var(--panel-colour),
+				-8px 8px 0px 0px rgba(0,0,0,0.4),
+				8px 8px 0px 0px rgba(0,0,0,0.4),
+				0px 16px 0px 0px rgba(0,0,0,0.4); 
+}
+
+.panel-2 { --panel-colour: var(--surface-2); }
+.panel-3 { --panel-colour: var(--surface-3); }
+.panel-4 { --panel-colour: var(--surface-4); }
+
+//
+// Input
+//
+input {
+    margin: 8px 0px;
+    border: none;
+    color: var(--surface-1);
+    padding: 4px 8px;
+    font-size: 24px;
+
+    background-color: var(--text-1);
+    box-shadow: 0px 8px 0px 0px var(--text-1),
+				-8px 0 0px 0px var(--text-1),
+				8px 0 0px 0px var(--text-1),
+				0px -8px 0px 0px var(--text-1);
+}
+
+input:focus {
+    outline: none;
 }

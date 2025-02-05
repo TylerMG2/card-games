@@ -20,6 +20,9 @@ struct QueryParams {
     code: String,
 }
 
+//TODO: It might be worth adding a way to generate a unique room code i.e 'create_room' endpoint
+// rather the run the risk of a collision by having the client generate it. Although the risk is low with
+// a 6-8 character code and low number of players.
 #[tokio::main]
 async fn main() {
     let state = AppState {

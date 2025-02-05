@@ -5,11 +5,13 @@ use components::{home::Home, room::Room};
 pub mod components {
     pub mod home;
     pub mod room;
+    pub mod join_room;
+    pub mod games {
+        pub mod game;
+    }
 }
 
 pub mod ui {
-    pub mod button;
-    pub mod panel;
     pub mod input;
 }
 
