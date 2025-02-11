@@ -37,6 +37,7 @@ pub fn JoinRoom() -> impl IntoView {
                         placeholder="Enter name"
                         maxlength="20"
                         class="input-class"
+                        required
                     />
                     <button 
                         class="btn-green"

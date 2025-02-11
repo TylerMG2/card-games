@@ -10,20 +10,20 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
         },
         ServerEvent::CommonEvent(event) => {
             match event {
-                CommonServerEvent::HostChanged { player_index } => {
-                    room.common.host = *player_index;
+                CommonServerEvent::HostChanged { player_index } => { // TODO: After finishing the game, we may be able to remove this event and just have the host change when the host disconnects
+                    room.host = *player_index;
                 },
                 CommonServerEvent::PlayerDisconnected { player_index } => {
-                    if let Some(player) = room.common.players.get_mut(*player_index as usize) { // TODO, maybe centralize player fetching so we can better log when no player is found since this should never happen in this case
+                    if let Some(player) = room.players.get_mut(*player_index as usize) { // TODO, maybe centralize player fetching so we can better log when no player is found since this should never happen in this case
                         if let Some(player) = player {
                             player.common.disconnected = true;
                         }
                     }
         
                     // Change host if the host disconnected
-                    if *player_index == room.common.host {
+                    if *player_index == room.host {
                         let mut new_host = None;
-                        for (index, player) in room.common.players.iter().enumerate() {
+                        for (index, player) in room.players.iter().enumerate() {
                             if let Some(player) = player {
                                 if !player.common.disconnected {
                                     new_host = Some(index as u8);
@@ -33,20 +33,20 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
                         }
         
                         if let Some(new_host) = new_host {
-                            room.common.host = new_host;
+                            room.host = new_host;
                         }
                     }
                 },
                 CommonServerEvent::PlayerJoined { name, player_index } => {
                     let mut new_player = types::Player::default();
                     new_player.common.name = *name;
-                    room.common.players[*player_index as usize] = Some(new_player);
+                    room.players[*player_index as usize] = Some(new_player);
                 },
                 CommonServerEvent::PlayerLeft { player_index } => {
-                    room.common.players[*player_index as usize] = None;
+                    room.players[*player_index as usize] = None;
                 },
                 CommonServerEvent::PlayerReconnected { player_index } => {
-                    if let Some(player) = room.common.players.get_mut(*player_index as usize) {
+                    if let Some(player) = room.players.get_mut(*player_index as usize) {
                         if let Some(player) = player {
                             player.common.disconnected = false;
                         }
@@ -55,11 +55,11 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
                 CommonServerEvent::RoomJoined { new_room, current_player } => {
                     if !is_server_side {
                         *room = *new_room;
-                        room.common.player_index = *current_player;
+                        room.player_index = *current_player;
                     }
                 },
                 CommonServerEvent::GameChanged { game } => {
-                    room.common.game = *game;
+                    room.game = *game;
                 }
             }
         },
@@ -78,13 +78,13 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
         ClientEvent::CommonEvent(event) => {
             match event {
                 CommonClientEvent::JoinRoom { name: _ } => {
-                    if let Some(player) = room.common.players.get(player_index) {
+                    if let Some(player) = room.players.get(player_index) {
                         return player.is_none();
                     }
                     false
                 },
                 CommonClientEvent::LeaveRoom => true,
-                CommonClientEvent::ChangeGame { game: _ } => room.common.host as usize == player_index && room.common.state == types::RoomState::Lobby,
+                CommonClientEvent::ChangeGame { game: _ } => room.host as usize == player_index && room.state == types::RoomState::Lobby,
                 CommonClientEvent::Disconnect => true,
             }
         },

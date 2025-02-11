@@ -31,7 +31,7 @@ pub struct RoomContext {
 impl RoomContext {
     pub fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
         let room = self.room.get();
-        logic::validate_client_event(&room, event, room.common.player_index as usize)
+        logic::validate_client_event(&room, event, room.player_index as usize)
     }
 
     pub fn send_event(&self, event: types::ClientEvent) {
@@ -79,7 +79,7 @@ pub fn Room() -> impl IntoView {
             ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
             // On error
-            let onerror_callback = Closure::<dyn FnMut(_)>::new(move |e: ErrorEvent| {
+            let onerror_callback = Closure::<dyn FnMut(_)>::new(move |_e: ErrorEvent| {
                 set_state.set(WebsocketState::Failed);
             });
             ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
@@ -112,14 +112,11 @@ pub fn Room() -> impl IntoView {
                     console_log(format!("Received event: {:?}", event).as_str());
 
                     set_room.update(|room| {
-                        logic::handle_server_event(room, &event, Some(room.common.player_index as usize), false);
+                        logic::handle_server_event(room, &event, Some(room.player_index as usize), false);
                     });
 
-                    // Log current room state
-                    //console_log(format!("Room: {:?}", room.get()).as_str());
-
                     // Room joined event
-                    if let types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { new_room: _, current_player: _ }) = event {
+                    if let types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { new_room: room, current_player: _ }) = event {
                         set_in_room.set(true);
                     }
                 } else {

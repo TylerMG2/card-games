@@ -8,6 +8,10 @@ pub mod components {
     pub mod join_room;
     pub mod games {
         pub mod game;
+        pub mod tycoon {
+            pub mod tycoon;
+            pub mod player;
+        }
     }
 }
 
@@ -19,7 +23,6 @@ fn main() {
     console_error_panic_hook::set_once();
     leptos::mount::mount_to_body(App)
 }
-
 
 #[component]
 fn App() -> impl IntoView {

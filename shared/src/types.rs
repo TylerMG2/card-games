@@ -24,17 +24,12 @@ pub enum RoomState {
 
 #[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct Room {
-    pub common: CommonRoom,
-    pub carbo: carbo::CarboRoom,
-    pub tycoon: tycoon::TycoonRoom,
-}
-
-#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
-pub struct CommonRoom {
     pub state: RoomState,
     pub game: GameType,
     pub host: u8,
     pub player_index: u8,
+    pub carbo: carbo::CarboRoom,
+    pub tycoon: tycoon::TycoonRoom,
     pub players: [Option<Player>; MAX_PLAYERS],
 }
 

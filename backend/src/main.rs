@@ -163,7 +163,7 @@ async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedS
 
     if let Some(player_index) = room.add_connection(tx, id) {
         // Check if the player is reconnecting
-        if let Some(Some(_)) = room.room.common.players.get_mut(player_index) {
+        if let Some(Some(_)) = room.room.players.get_mut(player_index) {
             println!("({}) {} reconnected", query.code, query.id);
             room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }), player_index);
             Some(player_index)
