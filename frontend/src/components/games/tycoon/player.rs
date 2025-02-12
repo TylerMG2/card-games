@@ -6,16 +6,18 @@ use crate::components::room::RoomContext;
 pub fn Player(player_index: usize) -> impl IntoView {
     let room_context = use_context::<RoomContext>().expect("RoomContext not found");
 
-    let player = Signal::derive(move || room_context.room.get().players[player_index]);
+    let player = move || room_context.room.read().unwrap().players[player_index].signal.get();
 
     view! {
-        <Show when=move || player.get().is_some() fallback=|| view! { <div></div> }>
+        <Show when=move || player().is_some() fallback=|| view! { <div></div> }>
         {
             console_log(format!("Rerendering player: {:?}", player_index).as_str());
         }
             <div class="player">
-                <div class="player-name">{player.get().unwrap().common.name}</div>
+                
             </div>
         </Show>
     }
 }
+
+// <div class="player-name">{player().unwrap().name.signal.get()}</div>

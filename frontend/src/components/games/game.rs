@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use shared::types;
+use shared::{traits::GameSignal, types};
 
 use crate::components::{games::tycoon::tycoon::Tycoon, room::RoomContext};
 
@@ -7,12 +7,12 @@ use crate::components::{games::tycoon::tycoon::Tycoon, room::RoomContext};
 pub fn Game() -> impl IntoView {
     let room_context = use_context::<RoomContext>().expect("RoomContext not found");
 
-    let gamemode = Signal::derive(move || room_context.room.get().game);
+    let gamemode = move || room_context.room.read().unwrap().game.signal.get();
 
     // TODO: Check if it only rerenders when the game type changes as opposed to the room changing in any way
     view! {
         <div>
-            {move || match gamemode.get() {
+            {move || match gamemode() {
                 types::GameType::Carbo => view! {
                     <div>
                         <h2>{"Carbo"}</h2>

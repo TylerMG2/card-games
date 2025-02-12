@@ -41,9 +41,7 @@ pub fn Tycoon() -> impl IntoView {
     let room_context = use_context::<RoomContext>().expect("RoomContext not found");
     
     // Get all current players in the room
-    let players = move || {
-        room_context.room.get().players.iter().filter_map(|&p| p).collect::<Vec<types::Player>>()
-    };
+    
 
     // Render all the players
     view! {

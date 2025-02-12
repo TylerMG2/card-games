@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-shared = { path = "../shared" }
-uuid = { version = "1.11", features = ["v4"] }
+shared = { path = "../shared", features = ["frontend"] }
+uuid = { version = "1.13.1", features = ["v4", "js"] }
 gloo = "0.11.0"
 futures = "0.3.31"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
-wasm-bindgen-futures = "0.4.49"
-leptos = { version = "0.7.2", features = ["csr"] }
-leptos_router = "0.7.2"
+wasm-bindgen-futures = "0.4.50"
+leptos = { version = "0.7.7", features = ["csr"] }
+leptos_router = "0.7.7"
 console_error_panic_hook = "0.1.7"
-web-sys = "0.3.76"
+web-sys = "0.3.77"
 stylance = "0.5.4"

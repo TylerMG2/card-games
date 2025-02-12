@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use axum::{extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Router};
 use serde::Deserialize;
 
-use shared::{logic::{handle_client_event, validate_client_event}, traits::{Networking, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
+use shared::{logic::{handle_client_event, validate_client_event}, traits::{Networking, GameSignal, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
 use tokio::{net::TcpListener, sync::{mpsc::UnboundedSender, RwLock}, time::timeout};
 use futures::{sink::SinkExt, stream::{SplitStream, StreamExt}};
 use types::ServerRoom;
@@ -69,7 +69,7 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 
             // I wonder if theres a nice way to refactor this since this should all be guaranteed to exist
             if let Some(room) = rooms.get_mut(&query.code) {
-                let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room, current_player: player_index as u8 });
+                let join_event = ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room: room.room.clone(), current_player: player_index as u8 });
                 room.connections.send_to(&mut room.room, join_event, player_index);
             } else {
                 // This should never happen
@@ -163,29 +163,31 @@ async fn handle_connection(state: &AppState, query: &QueryParams, tx: UnboundedS
 
     if let Some(player_index) = room.add_connection(tx, id) {
         // Check if the player is reconnecting
-        if let Some(Some(_)) = room.room.players.get_mut(player_index) {
-            println!("({}) {} reconnected", query.code, query.id);
-            room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }), player_index);
-            Some(player_index)
-        } else {
-            drop(rooms); // Drop the lock to prevent deadlock
-
-            match timeout(Duration::from_secs(300), wait_for_name_and_code(receiver)).await {
-                Ok(Some(name)) => {
-                    let mut rooms = state.rooms.write().await;
-                    let room = rooms.get_mut(&query.code).unwrap();
-                    room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }), player_index);
-                    Some(player_index)
-                },
-                Ok(None) => {
-                    println!("({}) {} failed to connect, REASON: Invalid name", query.code, query.id);
-                    None
-                },
-                Err(_) => {
-                    println!("({}) {} failed to connect, REASON: Timeout", query.code, query.id);
-                    None
-                },
+        if let Some(player) = room.room.players.get_mut(player_index) {
+            if let Some(_) = player.get() {
+                println!("({}) {} reconnected", query.code, query.id);
+                room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerReconnected { player_index: player_index as u8 }), player_index);
+                return Some(player_index);
             }
+        }
+
+        drop(rooms); // Drop the lock to prevent deadlock
+
+        match timeout(Duration::from_secs(300), wait_for_name_and_code(receiver)).await {
+            Ok(Some(name)) => {
+                let mut rooms = state.rooms.write().await;
+                let room = rooms.get_mut(&query.code).unwrap();
+                room.connections.send_to_all_except(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerJoined { name, player_index: player_index as u8 }), player_index);
+                Some(player_index)
+            },
+            Ok(None) => {
+                println!("({}) {} failed to connect, REASON: Invalid name", query.code, query.id);
+                None
+            },
+            Err(_) => {
+                println!("({}) {} failed to connect, REASON: Timeout", query.code, query.id);
+                None
+            },
         }
     } else {
         println!("({}) {} failed to connect, REASON: Room is full", query.code, query.id);

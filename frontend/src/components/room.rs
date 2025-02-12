@@ -1,9 +1,11 @@
+use std::sync::{Arc, RwLock};
+
 use futures::channel::mpsc::UnboundedSender;
 use futures_util::StreamExt;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
-use shared::{logic, types, traits::ToFromBytes};
+use shared::{logic, traits::{GameSignal, ToFromBytes}, types};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{js_sys, wasm_bindgen::{prelude::Closure, JsCast}, ErrorEvent, MessageEvent, WebSocket};
 use gloo::storage::{LocalStorage, Storage, errors::StorageError};
@@ -19,10 +21,9 @@ pub enum WebsocketState {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct RoomContext {
-    pub room: ReadSignal<types::Room>,
-    set_room: WriteSignal<types::Room>,
+    pub room: Arc<RwLock<types::Room>>,
     pub state: ReadSignal<WebsocketState>,
     set_state: WriteSignal<WebsocketState>,
     sender: ReadSignal<Option<UnboundedSender<Vec<u8>>>>,
@@ -30,8 +31,8 @@ pub struct RoomContext {
 
 impl RoomContext {
     pub fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
-        let room = self.room.get();
-        logic::validate_client_event(&room, event, room.player_index as usize)
+        let room = self.room.read().unwrap();
+        logic::validate_client_event(&room, event, *room.player_index.get() as usize)
     }
 
     pub fn send_event(&self, event: types::ClientEvent) {
@@ -53,17 +54,23 @@ pub fn Room() -> impl IntoView {
     let id = get_player_id();
     let (code, set_code) = signal(None);
     let (state, set_state) = signal(WebsocketState::Disconnected);
-    let (room, set_room) = signal(types::Room::default());
+    let room = Arc::new(RwLock::new(types::Room::default()));
+    let room_websocket = room.clone();
     let (sender, set_sender) = signal(None);
     let (in_room, set_in_room) = signal(false);
     
-    let params = use_params_map();
-    set_code.set(params.read().get("code"));
+    Effect::new(move |_| {
+        let params = use_params_map();
+        if let Some(code_param) = params.read().get("code") {
+            set_code.set(Some(code_param));
+        }
+    });
 
     // TODO: I think we need to clean up the websocket connection when the component is unmounted
-    Effect::new(move |_| {
-        // TODO: We should probably add some better reconnect logic to avoid spamming the server
+    Effect::new(move || {
+        let room_clone = room_websocket.clone();
 
+        // TODO: We should probably add some better reconnect logic to avoid spamming the server
         if state.get() != WebsocketState::Disconnected { return; }
 
         if let Some(code) = code.get() {
@@ -111,12 +118,12 @@ pub fn Room() -> impl IntoView {
                     let event = types::ServerEvent::from_bytes(&vec);
                     console_log(format!("Received event: {:?}", event).as_str());
 
-                    set_room.update(|room| {
-                        logic::handle_server_event(room, &event, Some(room.player_index as usize), false);
-                    });
+                    let mut room = room_clone.write().unwrap(); //TODO: Handle error, maybe just return and close the connection
+                    let player_index = *room.player_index.get() as usize;
+                    logic::handle_server_event(&mut room, &event, Some(player_index), false);
 
                     // Room joined event
-                    if let types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { new_room: room, current_player: _ }) = event {
+                    if let types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { new_room: _, current_player: _ }) = event {
                         set_in_room.set(true);
                     }
                 } else {
@@ -141,12 +148,10 @@ pub fn Room() -> impl IntoView {
 
     let context = RoomContext {
         room,
-        set_room,
         state,
         set_state,
         sender,
     };
-    
 
     provide_context(context);
 

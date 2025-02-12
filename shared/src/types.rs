@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::games::{carbo, tycoon};
-use crate::traits;
+use crate::traits::{self, GameSignal};
 
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_NAME_LENGTH: usize = 20;
@@ -22,28 +22,24 @@ pub enum RoomState {
     InGame,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
+//TODO: Investigate if we can ever add Copy back to this
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Room {
-    pub state: RoomState,
-    pub game: GameType,
-    pub host: u8,
-    pub player_index: u8,
+    pub state: SignalType<RoomState>,
+    pub game: SignalType<GameType>,
+    pub host: SignalType<u8>,
+    pub player_index: SignalType<u8>,
     pub carbo: carbo::CarboRoom,
     pub tycoon: tycoon::TycoonRoom,
-    pub players: [Option<Player>; MAX_PLAYERS],
+    pub players: [SignalType<Option<Player>>; MAX_PLAYERS],
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Player {
-    pub common: CommonPlayer,
+    pub name: SignalType<[u8; MAX_NAME_LENGTH]>,
+    pub disconnected: SignalType<bool>,
     pub carbo: carbo::CarboPlayer,
     pub tycoon: tycoon::TycoonPlayer,
-}
-
-#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug)]
-pub struct CommonPlayer {
-    pub name: [u8; MAX_NAME_LENGTH],
-    pub disconnected: bool,
 }
 
 //
@@ -92,4 +88,119 @@ pub enum CommonClientEvent {
     LeaveRoom,
     ChangeGame { game: GameType },
     Disconnect,
+}
+
+//
+// Signals
+//
+
+// Backend Signal
+#[cfg(not(feature = "frontend"))]
+#[derive(Debug, Clone, Copy)]
+pub struct SignalType<T> {
+    value: T,
+}
+
+#[cfg(not(feature = "frontend"))]
+impl<T: Clone> GameSignal<T> for SignalType<T> {
+    fn get(&self) -> &T {
+        &self.value
+    }
+
+    fn get_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+
+    fn set(&mut self, value: T) {
+        self.value = value;
+    }
+}
+
+#[cfg(not(feature = "frontend"))]
+impl<T: Serialize> Serialize for SignalType<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.value.serialize(serializer) // Serialize just the inner value
+    }
+}
+
+#[cfg(not(feature = "frontend"))]
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for SignalType<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = T::deserialize(deserializer)?;
+        Ok(SignalType { value }) // Wrap the deserialized value
+    }
+}
+
+#[cfg(not(feature = "frontend"))]
+impl<T: Default> Default for SignalType<T> {
+    fn default() -> Self {
+        Self { value: T::default() }
+    }
+}
+
+// Frontend Signal
+#[cfg(feature = "frontend")]
+use leptos::prelude::{ArcRwSignal, Set};
+
+#[cfg(feature = "frontend")]
+#[derive(Debug, Clone)]
+pub struct SignalType<T> {
+    value: T,
+    pub signal: ArcRwSignal<T>,
+}
+
+#[cfg(feature = "frontend")]
+impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {
+    fn get(&self) -> &T {
+        &self.value
+    }
+
+    fn get_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+
+    fn set(&mut self, value: T) {
+        self.value = value.clone();
+        self.signal.set(value);
+    }
+}
+
+#[cfg(feature = "frontend")]
+impl<T: Serialize + Clone> Serialize for SignalType<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.value.serialize(serializer) // Serialize only the inner value
+    }
+}
+
+#[cfg(feature = "frontend")]
+impl<'de, T: Deserialize<'de> + Clone + Send + Sync + 'static> Deserialize<'de> for SignalType<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = T::deserialize(deserializer)?;
+        Ok(SignalType {
+            value: value.clone(),
+            signal: ArcRwSignal::new(value),
+        })
+    }
+}
+
+#[cfg(feature = "frontend")]
+impl<T: Default + Send + Sync + 'static> Default for SignalType<T> {
+    fn default() -> Self {
+        Self {
+            value: T::default(),
+            signal: ArcRwSignal::new(T::default()),
+        }
+    }
 }

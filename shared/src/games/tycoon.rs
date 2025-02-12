@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::{traits, types};
+use crate::{traits::{self, GameSignal}, types};
 
 #[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq, Debug)]
 pub enum RoomState {
@@ -9,19 +9,19 @@ pub enum RoomState {
     Game,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Default, Debug)]
+#[derive(Clone, Deserialize, Serialize, Default, Debug)]
 pub struct TycoonRoom {
-    pub turn: u8,
-    pub last_played: u64,
+    pub turn: types::SignalType<u8>,
+    pub last_played: types::SignalType<u8>,
     pub last_played_player: u8,
-    pub revolution: bool,
-    pub state: RoomState,
+    pub revolution: types::SignalType<bool>,
+    pub state: types::SignalType<RoomState>,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Default, Debug)]
+#[derive(Clone, Deserialize, Serialize, Default, Debug)]
 pub struct TycoonPlayer {
-    pub hand: u64,
-    pub num_cards: u8,
+    pub hand: types::SignalType<u64>,
+    pub num_cards: types::SignalType<u8>,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize, Debug)]
@@ -49,7 +49,7 @@ impl traits::GameLogic for TycoonRoom {
     fn validate_client_game_event(room: &types::Room, event: &TycoonClientEvent, player_index: usize) -> bool {
         match event {
             TycoonClientEvent::StartGame => {
-                room.tycoon.state == RoomState::Lobby && room.host == player_index as u8 
+                *room.tycoon.state.get() == RoomState::Lobby && *room.host.get() == player_index as u8 
             },
             TycoonClientEvent::PlayCards { cards } => {
                 todo!("Validate cards played");
@@ -85,16 +85,18 @@ impl traits::GameLogic for TycoonRoom {
     fn handle_server_game_event(room: &mut types::Room, event: &Self::GameServerEvent, as_player: Option<usize>, is_server_side: bool) {
         match event {
             TycoonServerEvent::GameStarted { turn, cards, other_hands } => {
-                room.tycoon.turn = *turn;
-                room.tycoon.state = RoomState::Game;
+                room.tycoon.turn.set(*turn);
+                room.tycoon.state.set(RoomState::Game);
 
                 for (index, hand) in other_hands.iter().enumerate() {
-                    if let Some(Some(player)) = room.players.get_mut(index) {
-                        player.tycoon.num_cards = *hand;
+                    if let Some(player) = room.players.get_mut(index) {
+                        if let Some(player) = player.get_mut() {
+                            player.tycoon.num_cards.set(*hand);
 
-                        if let Some(player_index) = as_player {
-                            if index == player_index {
-                                player.tycoon.hand = *cards;
+                            if let Some(player_index) = as_player {
+                                if index == player_index {
+                                    player.tycoon.hand.set(*cards);
+                                }
                             }
                         }
                     }

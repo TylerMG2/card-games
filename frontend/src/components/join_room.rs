@@ -25,6 +25,7 @@ pub fn JoinRoom() -> impl IntoView {
         room_context.send_event(event);
     };
 
+    //TODO: Does input value need to be set?
     view! {
         <div style="display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: center;">
             <div class="d-flex flex-column panel panel-1">
@@ -32,7 +33,7 @@ pub fn JoinRoom() -> impl IntoView {
                     <div style="font-size: 64px;"> {"JOIN ROOM"} </div>
                     <input 
                         type="text"
-                        value=name.get()
+                        value={move || name.get()}
                         on:input=move |ev| name.set(event_target_value(&ev))
                         placeholder="Enter name"
                         maxlength="20"
