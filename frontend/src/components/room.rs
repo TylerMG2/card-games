@@ -32,7 +32,7 @@ pub struct RoomContext {
 impl RoomContext {
     pub fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
         let room = self.room.read().unwrap();
-        logic::validate_client_event(&room, event, *room.player_index.get() as usize)
+        logic::validate_client_event(&room, event, room.player_index.get() as usize)
     }
 
     pub fn send_event(&self, event: types::ClientEvent) {
@@ -119,7 +119,7 @@ pub fn Room() -> impl IntoView {
                     console_log(format!("Received event: {:?}", event).as_str());
 
                     let mut room = room_clone.write().unwrap(); //TODO: Handle error, maybe just return and close the connection
-                    let player_index = *room.player_index.get() as usize;
+                    let player_index = room.player_index.get() as usize;
                     logic::handle_server_event(&mut room, &event, Some(player_index), false);
 
                     // Room joined event

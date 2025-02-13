@@ -94,70 +94,30 @@ pub enum CommonClientEvent {
 // Signals
 //
 
-// Backend Signal
-#[cfg(not(feature = "frontend"))]
-#[derive(Debug, Clone, Copy)]
+#[cfg(feature = "frontend")]
+use leptos::prelude::{ArcRwSignal, Set, Get};
+
+#[derive(Debug, Clone, Serialize)]
 pub struct SignalType<T> {
     value: T,
+
+    #[cfg(feature = "frontend")]
+    #[serde(skip)]
+    signal: ArcRwSignal<T>,
 }
 
-#[cfg(not(feature = "frontend"))]
-impl<T: Clone> GameSignal<T> for SignalType<T> {
-    fn get(&self) -> &T {
-        &self.value
-    }
-
-    fn get_mut(&mut self) -> &mut T {
-        &mut self.value
-    }
-
-    fn set(&mut self, value: T) {
-        self.value = value;
-    }
-}
-
-#[cfg(not(feature = "frontend"))]
-impl<T: Serialize> Serialize for SignalType<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.value.serialize(serializer) // Serialize just the inner value
-    }
-}
-
-#[cfg(not(feature = "frontend"))]
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for SignalType<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = T::deserialize(deserializer)?;
-        Ok(SignalType { value }) // Wrap the deserialized value
-    }
-}
-
-#[cfg(not(feature = "frontend"))]
-impl<T: Default> Default for SignalType<T> {
-    fn default() -> Self {
-        Self { value: T::default() }
-    }
-}
-
-// Frontend Signal
+// By making this specifically available for the frontend, we avoid any of the logic in shared
+// accidentally using a frontend signal getter instead of just the value getter which can be 
+// inconsistent
 #[cfg(feature = "frontend")]
-use leptos::prelude::{ArcRwSignal, Set};
-
-#[cfg(feature = "frontend")]
-#[derive(Debug, Clone)]
-pub struct SignalType<T> {
-    value: T,
-    pub signal: ArcRwSignal<T>,
+impl<T: Clone + 'static> SignalType<T> {
+    pub fn get(&self) -> T {
+        self.signal.get()
+    }
 }
 
-#[cfg(feature = "frontend")]
-impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {
-    fn get(&self) -> &T {
+impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {    
+    fn value(&self) -> &T {
         &self.value
     }
 
@@ -167,39 +127,31 @@ impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {
 
     fn set(&mut self, value: T) {
         self.value = value.clone();
+
+        #[cfg(feature = "frontend")]
         self.signal.set(value);
     }
 }
 
-#[cfg(feature = "frontend")]
-impl<T: Serialize + Clone> Serialize for SignalType<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.value.serialize(serializer) // Serialize only the inner value
-    }
-}
-
-#[cfg(feature = "frontend")]
-impl<'de, T: Deserialize<'de> + Clone + Send + Sync + 'static> Deserialize<'de> for SignalType<T> {
+impl<'de, T: Deserialize<'de> + Clone> Deserialize<'de> for SignalType<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Ok(SignalType {
+        Ok(SignalType { 
             value: value.clone(),
+            #[cfg(feature = "frontend")]
             signal: ArcRwSignal::new(value),
-        })
+        }) // Wrap the deserialized value
     }
 }
 
-#[cfg(feature = "frontend")]
-impl<T: Default + Send + Sync + 'static> Default for SignalType<T> {
+impl<T: Default> Default for SignalType<T> {
     fn default() -> Self {
-        Self {
+        Self { 
             value: T::default(),
+            #[cfg(feature = "frontend")]
             signal: ArcRwSignal::new(T::default()),
         }
     }

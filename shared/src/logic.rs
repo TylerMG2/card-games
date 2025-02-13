@@ -21,11 +21,11 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
                     }
         
                     // Change host if the host disconnected
-                    if player_index == room.host.get() {
+                    if player_index == room.host.value() {
                         let mut new_host = None;
                         for (index, player) in room.players.iter().enumerate() {
-                            if let Some(player) = player.get() {
-                                if !player.disconnected.get() {
+                            if let Some(player) = player.value() {
+                                if !player.disconnected.value() {
                                     new_host = Some(index as u8);
                                     break;
                                 }
@@ -79,12 +79,12 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
             match event {
                 CommonClientEvent::JoinRoom { name: _ } => {
                     if let Some(player) = room.players.get(player_index) {
-                        return player.get().is_none();
+                        return player.value().is_none();
                     }
                     false
                 },
                 CommonClientEvent::LeaveRoom => true,
-                CommonClientEvent::ChangeGame { game: _ } => *room.host.get() as usize == player_index && *room.state.get() == types::RoomState::Lobby,
+                CommonClientEvent::ChangeGame { game: _ } => *room.host.value() as usize == player_index && *room.state.value() == types::RoomState::Lobby,
                 CommonClientEvent::Disconnect => true,
             }
         },

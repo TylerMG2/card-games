@@ -49,7 +49,7 @@ impl traits::GameLogic for TycoonRoom {
     fn validate_client_game_event(room: &types::Room, event: &TycoonClientEvent, player_index: usize) -> bool {
         match event {
             TycoonClientEvent::StartGame => {
-                *room.tycoon.state.get() == RoomState::Lobby && *room.host.get() == player_index as u8 
+                *room.tycoon.state.value() == RoomState::Lobby && *room.host.value() == player_index as u8 
             },
             TycoonClientEvent::PlayCards { cards } => {
                 todo!("Validate cards played");

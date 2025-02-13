@@ -124,7 +124,7 @@ impl Networking for types::ClientConnection {
 }
 
 pub trait GameSignal<T> {
-    fn get(&self) -> &T;
+    fn value(&self) -> &T;
     fn get_mut(&mut self) -> &mut T;
     fn set(&mut self, value: T);
 }
