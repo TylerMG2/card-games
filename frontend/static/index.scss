@@ -32,7 +32,7 @@
 }
 
 body {
-    background-color: var(--surface-0);
+    background: radial-gradient(circle, var(--surface-0) 0%, var(--surface-0) 30%, #000000 100%);;
     color: var(--text-1);
     width: 100vw;
     height: 100vh;

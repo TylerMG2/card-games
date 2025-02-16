@@ -1,4 +1,4 @@
-use crate::{games::{carbo, tycoon}, traits::{GameLogic, Networking, GameSignal}, types::{self, ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent}};
+use crate::{games::{carbo, tycoon}, helpers::{is_host, is_lobby}, traits::{GameLogic, GameSignal, Networking}, types::{self, ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent}};
 
 pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_player: Option<usize>, is_server_side: bool) {
     match event {
@@ -60,7 +60,28 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
                 },
                 CommonServerEvent::GameChanged { game } => {
                     room.game.set(*game);
-                }
+                },
+                CommonServerEvent::ResetGame => {
+                    // TODO: this is a little verbose, maybe we can make a function to reset the game
+                    match room.game.value() {
+                        types::GameType::Carbo => {
+                            room.carbo = carbo::CarboRoom::default();
+                            room.players.iter_mut().for_each(|player| {
+                                if let Some(player) = player.get_mut() {
+                                    player.carbo = carbo::CarboPlayer::default();
+                                }
+                            });
+                        },
+                        types::GameType::Tycoon => {
+                            room.tycoon = tycoon::TycoonRoom::default();
+                            room.players.iter_mut().for_each(|player| {
+                                if let Some(player) = player.get_mut() {
+                                    player.tycoon = tycoon::TycoonPlayer::default();
+                                }
+                            });
+                        },
+                    }
+                },
             }
         },
         ServerEvent::Unknown => {}, // TODO: Either ignore or force the client to disconnect
@@ -84,8 +105,9 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
                     false
                 },
                 CommonClientEvent::LeaveRoom => true,
-                CommonClientEvent::ChangeGame { game: _ } => *room.host.value() as usize == player_index && *room.state.value() == types::RoomState::Lobby,
+                CommonClientEvent::ChangeGame { game: _ } => is_host(room, player_index) && is_lobby(room),
                 CommonClientEvent::Disconnect => true,
+                CommonClientEvent::ResetGame => is_host(room, player_index) && is_lobby(room), // TODO: reconsider when they should be able to reset
             }
         },
         ClientEvent::Unknown => false,
@@ -119,6 +141,9 @@ pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connecti
                 },
                 CommonClientEvent::Disconnect => {
                     connections.send_to_all_except_origin(room, ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected { player_index: player_index as u8 }), player_index);
+                },
+                CommonClientEvent::ResetGame => {
+                    connections.send_to_all_except_origin(room, ServerEvent::CommonEvent(CommonServerEvent::ResetGame), player_index);
                 }
             }
         },

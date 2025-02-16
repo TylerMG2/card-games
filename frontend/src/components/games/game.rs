@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use shared::{traits::GameSignal, types};
+use shared::types;
 
 use crate::components::{games::tycoon::tycoon::Tycoon, room::RoomContext};
 

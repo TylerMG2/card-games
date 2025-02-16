@@ -1,4 +1,4 @@
-use shared::{traits::{NetworkingSend, ToFromBytes}, types};
+use shared::{traits::{Networking, NetworkingSend, ToFromBytes}, types::{self, MAX_NAME_LENGTH}};
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Debug)]
@@ -27,28 +27,32 @@ pub struct ServerRoom {
 }
 
 impl ServerRoom {
-    pub fn add_connection(&mut self, tx: UnboundedSender<Vec<u8>>, id: uuid::Uuid) -> Option<usize> {
+    //TODO: let's make this return a Result instead of an Option, so we can return an error if the room is full
+    pub fn handle_connection(&mut self, tx: UnboundedSender<Vec<u8>>, id: uuid::Uuid, name: Option<[u8; MAX_NAME_LENGTH]>) -> Option<usize> {
         let mut first_free: Option<usize> = None;
 
-        // Look for player id while keeping track of the first free slot
+        // First we check if the player is already in the room, otherwise we add them at the first free spot
         for (index, connection) in self.connections.iter_mut().enumerate() {
-            if connection.is_none() && first_free.is_none() {
-                first_free = Some(index);
-            }
-
             if let Some(connection) = connection {
                 if connection.id == id {
                     connection.sender = Some(tx);
+                    println!("Player {} reconnected", id);
+                    self.connections.send_to_all_except(&mut self.room, types::ServerEvent::CommonEvent(types::CommonServerEvent::PlayerReconnected { player_index: index as u8 }), index);
                     return Some(index);
                 }
+            } else if first_free.is_none() {
+                first_free = Some(index);
             }
         }
 
         if let Some(index) = first_free {
-            self.connections[index] = Some(Connection { id, sender: Some(tx) });
-            Some(index)
-        } else {
-            None
+            if let Some(name) = name {
+                self.connections[index] = Some(Connection { id, sender: Some(tx) });
+                self.connections.send_to_all_except(&mut self.room, types::ServerEvent::CommonEvent(types::CommonServerEvent::PlayerJoined { name, player_index: index as u8 }), index);
+                return Some(index);
+            }
         }
+
+        None
     }
 }

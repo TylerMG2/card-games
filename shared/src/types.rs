@@ -68,6 +68,7 @@ pub enum CommonServerEvent {
     PlayerReconnected { player_index: u8 },
     HostChanged { player_index: u8 },
     GameChanged { game: GameType },
+    ResetGame,
 }
 
 // TODO: Use a macro to generate the client events
@@ -81,12 +82,12 @@ pub enum ClientEvent {
     Unknown,
 }
 
-// TODO: Reset current game action
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CommonClientEvent {
     JoinRoom { name: [u8; MAX_NAME_LENGTH] },
     LeaveRoom,
     ChangeGame { game: GameType },
+    ResetGame,
     Disconnect,
 }
 
@@ -103,7 +104,7 @@ pub struct SignalType<T> {
 
     #[cfg(feature = "frontend")]
     #[serde(skip)]
-    signal: ArcRwSignal<T>,
+    pub signal: ArcRwSignal<T>,
 }
 
 // By making this specifically available for the frontend, we avoid any of the logic in shared
@@ -116,7 +117,7 @@ impl<T: Clone + 'static> SignalType<T> {
     }
 }
 
-impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {    
+impl<T: Clone + 'static> GameSignal<T> for SignalType<T> { 
     fn value(&self) -> &T {
         &self.value
     }
@@ -125,6 +126,11 @@ impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {
         &mut self.value
     }
 
+    // For future Tyler, there could be a weird bug here when the value T has other Signals inside it,
+    // since we are setting the value to another value, the old value will be dropped and their signals
+    // will be dropped, this could be an issue if the signal is cloned and used elsewhere.
+    //
+    // I think we are fine as long as we never allow cloning of the internal .signal
     fn set(&mut self, value: T) {
         self.value = value.clone();
 
