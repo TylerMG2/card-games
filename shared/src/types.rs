@@ -28,7 +28,7 @@ pub struct Room {
     pub state: SignalType<RoomState>,
     pub game: SignalType<GameType>,
     pub host: SignalType<u8>,
-    pub player_index: SignalType<u8>,
+    pub player_index: SignalType<u8>, // TODO: If we ever make spectating possible, this will need to be a SignalType<Option<u8>>
     pub carbo: carbo::CarboRoom,
     pub tycoon: tycoon::TycoonRoom,
     pub players: [SignalType<Option<Player>>; MAX_PLAYERS],
@@ -84,7 +84,6 @@ pub enum ClientEvent {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CommonClientEvent {
-    JoinRoom { name: [u8; MAX_NAME_LENGTH] },
     LeaveRoom,
     ChangeGame { game: GameType },
     ResetGame,

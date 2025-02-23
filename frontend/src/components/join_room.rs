@@ -1,24 +1,21 @@
 use leptos::prelude::*;
-use shared::types::{self, MAX_NAME_LENGTH};
+use shared::types::MAX_NAME_LENGTH;
 use web_sys::SubmitEvent;
 
-
-use super::room::RoomContext;
-
 #[component]
-pub fn JoinRoom(mut join_room: impl FnMut([u8; MAX_NAME_LENGTH]) + 'static) -> impl IntoView {
+pub fn JoinRoom(mut join_room: impl FnMut(Option<[u8; MAX_NAME_LENGTH]>) + 'static) -> impl IntoView {
     let name = RwSignal::new("".to_string());
 
     let join_game = move |ev: SubmitEvent| {
         ev.prevent_default();
-        let name_string = name.get();
+        let name_string = name.get().trim().to_string();
         let name_slice = name_string.as_bytes();
 
         let mut name_bytes = [0u8; 20];
         let len = name_slice.len().min(20);
         name_bytes[..len].copy_from_slice(&name_slice[..len]);
 
-        join_room(name_bytes);
+        join_room(Some(name_bytes));
     };
 
     //TODO: Does input value need to be set?

@@ -32,7 +32,7 @@
 }
 
 body {
-    background: radial-gradient(circle, var(--surface-0) 0%, var(--surface-0) 30%, #000000 100%);;
+    background: radial-gradient(circle, var(--surface-0) 0%, var(--surface-0) 70%, #1a0016 100%);;
     color: var(--text-1);
     width: 100vw;
     height: 100vh;
@@ -174,4 +174,33 @@ input {
 
 input:focus {
     outline: none;
+}
+
+//
+// Loading Room
+//
+.loading-room {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 36px;
+}
+
+.loading-room::after {
+    content: "";
+    animation: dots 1.5s steps(1) infinite;
+}
+
+@keyframes dots {
+    0%   { content: ""; }
+    25%  { content: "."; }
+    50%  { content: ".."; }
+    75%  { content: "..."; }
+    100% { content: "...."; }
+}
+
+.player {
+    position: absolute;
+    transition: top 0.3s, left 0.3s;
 }

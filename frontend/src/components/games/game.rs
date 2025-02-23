@@ -7,7 +7,7 @@ use crate::components::{games::tycoon::tycoon::Tycoon, room::RoomContext};
 pub fn Game() -> impl IntoView {
     let room_context = use_context::<RoomContext>().expect("RoomContext not found");
 
-    let gamemode = move || room_context.room.read().unwrap().game.get();
+    let gamemode = move || room_context.room.get().game.get();
 
     // TODO: Check if it only rerenders when the game type changes as opposed to the room changing in any way
     view! {

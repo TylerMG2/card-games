@@ -44,6 +44,7 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
                 },
                 CommonServerEvent::PlayerLeft { player_index } => {
                     room.players[*player_index as usize].set(None);
+                    //TODO: I think move all players after the player that left to the left
                 },
                 CommonServerEvent::PlayerReconnected { player_index } => {
                     if let Some(player) = room.players.get_mut(*player_index as usize) {
@@ -98,12 +99,6 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
         },
         ClientEvent::CommonEvent(event) => {
             match event {
-                CommonClientEvent::JoinRoom { name: _ } => {
-                    if let Some(player) = room.players.get(player_index) {
-                        return player.value().is_none();
-                    }
-                    false
-                },
                 CommonClientEvent::LeaveRoom => true,
                 CommonClientEvent::ChangeGame { game: _ } => is_host(room, player_index) && is_lobby(room),
                 CommonClientEvent::Disconnect => true,
@@ -132,7 +127,6 @@ pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connecti
         },
         ClientEvent::CommonEvent(event) => {
             match event {
-                CommonClientEvent::JoinRoom { name: _ } => {}, // Handled on connection
                 CommonClientEvent::LeaveRoom => {
                     connections.send_to_all_except_origin(room, ServerEvent::CommonEvent(CommonServerEvent::PlayerLeft { player_index: player_index as u8 }), player_index);
                 },

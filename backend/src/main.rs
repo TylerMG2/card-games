@@ -18,7 +18,7 @@ struct AppState {
 struct QueryParams {
     id: String,
     code: String,
-    name: Option<[u8; MAX_NAME_LENGTH]>,
+    name: Option<String>,
 }
 
 //TODO: It might be worth adding a way to generate a unique room code i.e 'create_room' endpoint
@@ -44,6 +44,18 @@ async fn ws_handler(ws: WebSocketUpgrade, query: Query<QueryParams>, State(state
 
 async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     if query.code.len() != 6 { return; }
+    let name = if let Some(name) = query.name.clone() {
+        if name.len() > MAX_NAME_LENGTH { return; }
+
+        let mut name_bytes = [0u8; MAX_NAME_LENGTH];
+        name.as_bytes().iter().enumerate().for_each(|(i, &byte)| {
+            name_bytes[i] = byte;
+        });
+        Some(name_bytes)
+    } else {
+        None
+    };
+    
     let id = {
         match uuid::Uuid::parse_str(&query.id) {
             Ok(id) => id,
@@ -55,21 +67,17 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
     println!("({}) {} attempting to connect", query.code, query.id);
 
-    let mut send_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if sender.send(Message::Binary(msg)).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    // Important for handle_connection to take ownership of receiver so no other references are held
     let player_index = {
         let mut rooms = state.rooms.write().await;
         let room = rooms.entry(query.code.clone()).or_insert(types::ServerRoom::default());
-        match room.handle_connection(tx, id, query.name) {
-            Some(player_index) => player_index,
+        match room.handle_connection(tx, id, name) {
+            Some(player_index) => {
+                let new_room = room.room.clone();
+                room.connections.send_to(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room, current_player: player_index as u8 }), player_index);
+                player_index
+            },
             None => {
+                // TODO: Check if theres a nicer way to clean up the room in all cases where the connection closes.
                 if is_room_empty(room) {
                     rooms.remove(&query.code);
                     println!("({}) Room closed", query.code);
@@ -82,6 +90,14 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     };
 
     println!("({}) {} connected", query.code, query.id);
+
+    let mut send_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if sender.send(Message::Binary(msg)).await.is_err() {
+                break;
+            }
+        }
+    });
 
     let recv_state = state.clone();
     let recv_query = query.clone();
