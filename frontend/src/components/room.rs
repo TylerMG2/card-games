@@ -3,7 +3,7 @@ use futures_util::StreamExt;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
-use shared::{logic, traits::{GameSignal, ToFromBytes}, types::{self, MAX_NAME_LENGTH}};
+use shared::{logic, traits::{GameSignal, ToFromBytes}, types::{self, MAX_NAME_LENGTH, MAX_PLAYERS}};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{js_sys, wasm_bindgen::{prelude::Closure, JsCast}, ErrorEvent, MessageEvent, WebSocket};
 use gloo::storage::{LocalStorage, Storage};
@@ -23,6 +23,7 @@ pub struct RoomContext {
     pub room: RwSignal<types::Room>,
     set_ws_state: WriteSignal<WebsocketState>,
     sender: UnboundedSender<Vec<u8>>,
+    connection: types::ClientConnection,
 }
 
 impl RoomContext {
@@ -30,10 +31,16 @@ impl RoomContext {
         self.room.with(|room| logic::validate_client_event(&room, event, *room.player_index.value() as usize))
     }
 
-    pub fn send_event(&self, event: types::ClientEvent) {
+    pub fn handle_client_event(&mut self, event: &types::ClientEvent) {
+        self.room.update(|room| logic::handle_client_event(room, event, &mut self.connection, *room.player_index.value() as usize));
+    }
+
+    pub fn send_event(&mut self, event: types::ClientEvent) {
         console_log(format!("Sending event: {:?}", event).as_str());
 
         if self.validate_client_event(&event) {
+            self.handle_client_event(&event);
+
             let bytes = event.to_bytes();
             if self.sender.unbounded_send(bytes).is_err() {
                 self.set_ws_state.set(WebsocketState::Disconnected);
@@ -155,6 +162,7 @@ pub fn Room() -> impl IntoView {
                     room: room.clone(),
                     set_ws_state: set_ws_state.clone(),
                     sender: tx_signal.get().expect("Sender should be set"),
+                    connection: types::ClientConnection::default(),
                 });
                 view! { <Game /> }
             }   

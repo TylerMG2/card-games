@@ -1,4 +1,4 @@
-use crate::{games::{carbo, tycoon}, helpers::{is_host, is_lobby}, traits::{GameLogic, GameSignal, Networking}, types::{self, ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent}};
+use crate::{games::{carbo, coup, tycoon}, helpers::{is_host, is_lobby}, traits::{GameLogic, GameSignal, Networking}, types::{self, ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent}};
 
 pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_player: Option<usize>, is_server_side: bool) {
     match event {
@@ -7,6 +7,9 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
         },
         ServerEvent::CarboEvent(event) => {
             carbo::CarboRoom::handle_server_game_event(room, event, as_player, is_server_side);
+        },
+        ServerEvent::CoupEvent(event) => {
+            coup::CoupRoom::handle_server_game_event(room, event, as_player, is_server_side);
         },
         ServerEvent::CommonEvent(event) => {
             match event {
@@ -81,6 +84,14 @@ pub fn handle_server_event(room: &mut types::Room, event: &ServerEvent, as_playe
                                 }
                             });
                         },
+                        types::GameType::Coup => {
+                            room.coup = coup::CoupRoom::default();
+                            room.players.iter_mut().for_each(|player| {
+                                if let Some(player) = player.get_mut() {
+                                    player.coup = coup::CoupPlayer::default();
+                                }
+                            });
+                        },
                     }
                 },
             }
@@ -96,6 +107,9 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
         },
         ClientEvent::CarboEvent(event) => {
             carbo::CarboRoom::validate_client_game_event(room, event, player_index)
+        },
+        ClientEvent::CoupEvent(event) => {
+            coup::CoupRoom::validate_client_game_event(room, event, player_index)
         },
         ClientEvent::CommonEvent(event) => {
             match event {
@@ -125,6 +139,9 @@ pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connecti
         ClientEvent::CarboEvent(event) => {
             carbo::CarboRoom::handle_client_game_event(room, event, connections, player_index);
         },
+        ClientEvent::CoupEvent(event) => {
+            coup::CoupRoom::handle_client_game_event(room, event, connections, player_index);
+        },
         ClientEvent::CommonEvent(event) => {
             match event {
                 CommonClientEvent::LeaveRoom => {
@@ -144,3 +161,7 @@ pub fn handle_client_event(room: &mut types::Room, event: &ClientEvent, connecti
         ClientEvent::Unknown => {},
     }
 }
+
+// Note to future tyler: I think I can make this a macro.
+// Additionally, I would like to remove the mutability of the room and connections, instead returning a list of events to send
+// in order, this way I can't accidently edit the room or connections here when it really should be done in the handle_client_event

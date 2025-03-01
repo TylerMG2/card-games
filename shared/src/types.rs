@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-use crate::games::{carbo, tycoon};
+use crate::games::{carbo, coup, tycoon};
 use crate::traits::{self, GameSignal};
 
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_NAME_LENGTH: usize = 20;
 
+#[derive(Default, Clone, Copy, Debug)]
 pub struct ClientConnection;
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug)]
@@ -13,6 +14,7 @@ pub enum GameType {
     #[default]
     Tycoon,
     Carbo,
+    Coup,
 }
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug)]
@@ -31,6 +33,7 @@ pub struct Room {
     pub player_index: SignalType<u8>, // TODO: If we ever make spectating possible, this will need to be a SignalType<Option<u8>>
     pub carbo: carbo::CarboRoom,
     pub tycoon: tycoon::TycoonRoom,
+    pub coup: coup::CoupRoom,
     pub players: [SignalType<Option<Player>>; MAX_PLAYERS],
 }
 
@@ -40,6 +43,7 @@ pub struct Player {
     pub disconnected: SignalType<bool>,
     pub carbo: carbo::CarboPlayer,
     pub tycoon: tycoon::TycoonPlayer,
+    pub coup: coup::CoupPlayer,
 }
 
 //
@@ -54,6 +58,7 @@ pub enum ServerEvent {
     CommonEvent(CommonServerEvent),
     CarboEvent(<carbo::CarboRoom as traits::GameLogic>::GameServerEvent),
     TycoonEvent(<tycoon::TycoonRoom as traits::GameLogic>::GameServerEvent),
+    CoupEvent(<coup::CoupRoom as traits::GameLogic>::GameServerEvent),
 
     #[default]
     Unknown,
@@ -77,6 +82,7 @@ pub enum ClientEvent {
     CommonEvent(CommonClientEvent),
     CarboEvent(<carbo::CarboRoom as traits::GameLogic>::GameClientEvent),
     TycoonEvent(<tycoon::TycoonRoom as traits::GameLogic>::GameClientEvent),
+    CoupEvent(<coup::CoupRoom as traits::GameLogic>::GameClientEvent),
 
     #[default]
     Unknown,

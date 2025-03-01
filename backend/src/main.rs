@@ -93,7 +93,7 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 
     let mut send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            if sender.send(Message::Binary(msg)).await.is_err() {
+            if sender.send(Message::Binary(msg.into())).await.is_err() {
                 break;
             }
         }
