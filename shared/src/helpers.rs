@@ -1,4 +1,4 @@
-use crate::{traits::{GameLogic, GameSignal}, types};
+use crate::{traits::GameSignal, types};
 
 pub fn is_host(room: &types::Room, player_index: usize) -> bool {
     *room.host.value() == player_index as u8
@@ -9,5 +9,5 @@ pub fn is_lobby(room: &types::Room) -> bool {
 }
 
 // pub fn reset_room<T: GameLogic>(room: &mut T::Room) {
-    
+
 // }

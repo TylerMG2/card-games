@@ -9,7 +9,7 @@ pub const MAX_NAME_LENGTH: usize = 20;
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ClientConnection;
 
-#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug, Eq, Hash)]
 pub enum GameType {
     #[default]
     Tycoon,
@@ -54,6 +54,8 @@ pub struct Player {
 // If I use the form <game::GameRoom as GameLogic>::GameServerEvent, I can probably write a macro to generate the
 // Room, Player and Event types rather then having to update each one each time I add a new game
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
+#[allow(clippy::large_enum_variant)] // Suppresses only this warning, TODO: More investigation on if Box is worth it since
+// this isn't stored and is just passed around as a reference
 pub enum ServerEvent {
     CommonEvent(CommonServerEvent),
     CarboEvent(<carbo::CarboRoom as traits::GameLogic>::GameServerEvent),
@@ -65,14 +67,31 @@ pub enum ServerEvent {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)] //TODO: Clean up derives
+#[allow(clippy::large_enum_variant)] // Suppresses only this warning
 pub enum CommonServerEvent {
-    RoomJoined { new_room: Room, current_player: u8 },
-    PlayerJoined { name: [u8; MAX_NAME_LENGTH], player_index: u8 },
-    PlayerLeft { player_index: u8 },
-    PlayerDisconnected { player_index: u8 },
-    PlayerReconnected { player_index: u8 },
-    HostChanged { player_index: u8 },
-    GameChanged { game: GameType },
+    RoomJoined {
+        new_room: Room, // Box to reduce size of the enum, TODO: Reconsider this
+        current_player: u8,
+    },
+    PlayerJoined {
+        name: [u8; MAX_NAME_LENGTH],
+        player_index: u8,
+    },
+    PlayerLeft {
+        player_index: u8,
+    },
+    PlayerDisconnected {
+        player_index: u8,
+    },
+    PlayerReconnected {
+        player_index: u8,
+    },
+    HostChanged {
+        player_index: u8,
+    },
+    GameChanged {
+        game: GameType,
+    },
     ResetGame,
 }
 
@@ -101,7 +120,7 @@ pub enum CommonClientEvent {
 //
 
 #[cfg(feature = "frontend")]
-use leptos::prelude::{ArcRwSignal, Set, Get};
+use leptos::prelude::{ArcRwSignal, Get, Set};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SignalType<T> {
@@ -113,7 +132,7 @@ pub struct SignalType<T> {
 }
 
 // By making this specifically available for the frontend, we avoid any of the logic in shared
-// accidentally using a frontend signal getter instead of just the value getter which can be 
+// accidentally using a frontend signal getter instead of just the value getter which can be
 // inconsistent
 #[cfg(feature = "frontend")]
 impl<T: Clone + 'static> SignalType<T> {
@@ -122,7 +141,7 @@ impl<T: Clone + 'static> SignalType<T> {
     }
 }
 
-impl<T: Clone + 'static> GameSignal<T> for SignalType<T> { 
+impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {
     fn value(&self) -> &T {
         &self.value
     }
@@ -150,7 +169,7 @@ impl<'de, T: Deserialize<'de> + Clone> Deserialize<'de> for SignalType<T> {
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Ok(SignalType { 
+        Ok(SignalType {
             value: value.clone(),
             #[cfg(feature = "frontend")]
             signal: ArcRwSignal::new(value),
@@ -160,7 +179,7 @@ impl<'de, T: Deserialize<'de> + Clone> Deserialize<'de> for SignalType<T> {
 
 impl<T: Default> Default for SignalType<T> {
     fn default() -> Self {
-        Self { 
+        Self {
             value: T::default(),
             #[cfg(feature = "frontend")]
             signal: ArcRwSignal::new(T::default()),

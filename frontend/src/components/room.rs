@@ -1,12 +1,19 @@
 use futures::channel::mpsc::UnboundedSender;
 use futures_util::StreamExt;
+use gloo::storage::{LocalStorage, Storage};
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
-use shared::{logic, traits::{GameSignal, ToFromBytes}, types::{self, MAX_NAME_LENGTH, MAX_PLAYERS}};
+use shared::{
+    logic,
+    traits::{GameSignal, ToFromBytes},
+    types::{self, MAX_NAME_LENGTH},
+};
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{js_sys, wasm_bindgen::{prelude::Closure, JsCast}, ErrorEvent, MessageEvent, WebSocket};
-use gloo::storage::{LocalStorage, Storage};
+use web_sys::{
+    ErrorEvent, MessageEvent, WebSocket, js_sys,
+    wasm_bindgen::{JsCast, prelude::Closure},
+};
 
 use crate::components::{games::game::Game, join_room::JoinRoom};
 
@@ -16,7 +23,6 @@ pub enum WebsocketState {
     Connected,
     Disconnected,
 }
-
 
 #[derive(Clone)]
 pub struct RoomContext {
@@ -28,11 +34,20 @@ pub struct RoomContext {
 
 impl RoomContext {
     pub fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
-        self.room.with(|room| logic::validate_client_event(&room, event, *room.player_index.value() as usize))
+        self.room.with(|room| {
+            logic::validate_client_event(room, event, *room.player_index.value() as usize)
+        })
     }
 
     pub fn handle_client_event(&mut self, event: &types::ClientEvent) {
-        self.room.update(|room| logic::handle_client_event(room, event, &mut self.connection, *room.player_index.value() as usize));
+        self.room.update(|room| {
+            logic::handle_client_event(
+                room,
+                event,
+                &mut self.connection,
+                *room.player_index.value() as usize,
+            )
+        });
     }
 
     pub fn send_event(&mut self, event: types::ClientEvent) {
@@ -58,13 +73,17 @@ pub fn Room() -> impl IntoView {
 
     let params = use_params_map();
     let code = move || params.read().get("code");
-    
+
     let id = get_player_id();
 
     // TODO: I think we need to clean up the websocket connection when the component is unmounted
     let join_room = move |name: Option<[u8; MAX_NAME_LENGTH]>| {
-        let Some(code) = code() else { return; }; // TODO: Redirect to home page, this should never happen
-        if ws_state.get_untracked() != WebsocketState::Disconnected { return; } // Return if we are already connected
+        let Some(code) = code() else {
+            return;
+        }; // TODO: Redirect to home page, this should never happen
+        if ws_state.get_untracked() != WebsocketState::Disconnected {
+            return;
+        } // Return if we are already connected
 
         set_ws_state.set(WebsocketState::Connecting);
 
@@ -78,9 +97,9 @@ pub fn Room() -> impl IntoView {
             }
         };
         ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
-        
+
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<Vec<u8>>();
-        set_tx_signal.set(Some(tx));        
+        set_tx_signal.set(Some(tx));
 
         // On error
         let onerror_callback = Closure::<dyn FnMut(_)>::new(move |_e: ErrorEvent| {
@@ -117,13 +136,16 @@ pub fn Room() -> impl IntoView {
                 // Untracked because we don't want to rerender everything, only to changes for signals within the room
                 // Only potential issue is if *room = new_room, but that should only happen on room joined event, which should
                 // trigger rerendering anyways
-                room.update_untracked(|room| { 
+                room.update_untracked(|room| {
                     let player_index = *room.player_index.value() as usize;
                     logic::handle_server_event(room, &event, Some(player_index), false);
                 });
-                
+
                 // For tracking if we are in the room
-                if matches!(event, types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { .. })) {
+                if matches!(
+                    event,
+                    types::ServerEvent::CommonEvent(types::CommonServerEvent::RoomJoined { .. })
+                ) {
                     set_in_room.set(true);
                 }
             } else {
@@ -146,32 +168,30 @@ pub fn Room() -> impl IntoView {
     // Attempt initial connection on mount
     Effect::new(move || {
         // So its reactive to code changes
-        if let Some(_) = code() {
-            if ws_state.get_untracked() == WebsocketState::Disconnected {
-                let name = None;
-                join_room(name);
-            }
+        if code().is_some() && ws_state.get_untracked() == WebsocketState::Disconnected {
+            let name = None;
+            join_room(name);
         }
     });
 
     view! {
-        <Show 
+        <Show
             when=move || !in_room.get() || tx_signal.get().is_none()
             fallback=move || {
                 provide_context(RoomContext {
-                    room: room.clone(),
-                    set_ws_state: set_ws_state.clone(),
+                    room,
+                    set_ws_state,
                     sender: tx_signal.get().expect("Sender should be set"),
-                    connection: types::ClientConnection::default(),
+                    connection: types::ClientConnection,
                 });
                 view! { <Game /> }
-            }   
+            }
         >
-            <Show 
+            <Show
                 when=move || ws_state.get() == WebsocketState::Disconnected
                 fallback=|| view! { <div class="loading-room">"Joining Room"</div> }
             >
-                <JoinRoom join_room=join_room.clone() />
+                <JoinRoom join_room=join_room />
             </Show>
         </Show>
     }
@@ -184,14 +204,19 @@ pub fn get_player_id() -> uuid::Uuid {
         .and_then(|id| uuid::Uuid::parse_str(&id).ok())
         .unwrap_or_else(|| {
             let id = uuid::Uuid::new_v4();
-            let _ = LocalStorage::set("player_id", &id.to_string()); // TODO: Handle error if necessary
+            let _ = LocalStorage::set("player_id", id.to_string()); // TODO: Handle error if necessary
             id
         })
 }
 
 fn build_ws_url(code: &str, id: &uuid::Uuid, name: &Option<[u8; MAX_NAME_LENGTH]>) -> String {
     if let Some(name) = name {
-        format!("ws://localhost:3000/ws?code={}&id={}&name={}", code, id, String::from_utf8_lossy(name))
+        format!(
+            "ws://localhost:3000/ws?code={}&id={}&name={}",
+            code,
+            id,
+            String::from_utf8_lossy(name)
+        )
     } else {
         format!("ws://localhost:3000/ws?code={}&id={}", code, id)
     }

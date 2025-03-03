@@ -1,11 +1,11 @@
 pub mod games {
-    mod games;
-    pub mod tycoon;
     pub mod carbo;
     pub mod coup;
+    pub mod games;
+    pub mod tycoon;
 }
 
-pub mod types;
-pub mod traits;
-pub mod logic;
 mod helpers;
+pub mod logic;
+pub mod traits;
+pub mod types;

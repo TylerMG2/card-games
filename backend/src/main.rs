@@ -1,10 +1,22 @@
-use std::{collections::HashMap, sync::Arc};
-use axum::{extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Router};
+use axum::{
+    Router,
+    extract::{
+        Query, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
+    response::IntoResponse,
+    routing::get,
+};
 use serde::Deserialize;
+use std::{collections::HashMap, sync::Arc};
 
-use shared::{logic::{handle_client_event, validate_client_event}, traits::{Networking, ToFromBytes}, types::{ClientEvent, CommonClientEvent, CommonServerEvent, ServerEvent, MAX_NAME_LENGTH}};
-use tokio::{net::TcpListener, sync::RwLock};
 use futures::{sink::SinkExt, stream::StreamExt};
+use shared::{
+    logic::{handle_client_event, validate_client_event},
+    traits::{Networking, ToFromBytes},
+    types::{ClientEvent, CommonClientEvent, CommonServerEvent, MAX_NAME_LENGTH, ServerEvent},
+};
+use tokio::{net::TcpListener, sync::RwLock};
 use types::ServerRoom;
 
 mod types;
@@ -38,14 +50,22 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, query: Query<QueryParams>, State(state): State<AppState>) -> impl IntoResponse {
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    query: Query<QueryParams>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, query.0, state))
 }
 
 async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
-    if query.code.len() != 6 { return; }
+    if query.code.len() != 6 {
+        return;
+    }
     let name = if let Some(name) = query.name.clone() {
-        if name.len() > MAX_NAME_LENGTH { return; }
+        if name.len() > MAX_NAME_LENGTH {
+            return;
+        }
 
         let mut name_bytes = [0u8; MAX_NAME_LENGTH];
         name.as_bytes().iter().enumerate().for_each(|(i, &byte)| {
@@ -55,7 +75,7 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     } else {
         None
     };
-    
+
     let id = {
         match uuid::Uuid::parse_str(&query.id) {
             Ok(id) => id,
@@ -69,13 +89,22 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 
     let player_index = {
         let mut rooms = state.rooms.write().await;
-        let room = rooms.entry(query.code.clone()).or_insert(types::ServerRoom::default());
+        let room = rooms
+            .entry(query.code.clone())
+            .or_insert(types::ServerRoom::default());
         match room.handle_connection(tx, id, name) {
             Some(player_index) => {
                 let new_room = room.room.clone();
-                room.connections.send_to(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::RoomJoined { new_room, current_player: player_index as u8 }), player_index);
+                room.connections.send_to(
+                    &mut room.room,
+                    ServerEvent::CommonEvent(CommonServerEvent::RoomJoined {
+                        new_room,
+                        current_player: player_index as u8,
+                    }),
+                    player_index,
+                );
                 player_index
-            },
+            }
             None => {
                 // TODO: Check if theres a nicer way to clean up the room in all cases where the connection closes.
                 if is_room_empty(room) {
@@ -85,7 +114,7 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 
                 println!("({}) {} failed to connect", query.code, query.id);
                 return; // TODO: Send a message to the client
-            },
+            }
         }
     };
 
@@ -105,7 +134,9 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
         while let Some(msg) = receiver.next().await {
             match msg {
                 Ok(Message::Binary(data)) => {
-                    if data.len() < 1 || data.len() > 1000 { continue; } // Nothing should be this small or large
+                    if data.is_empty() || data.len() > 1000 {
+                        continue;
+                    } // Nothing should be this small or large
 
                     let mut rooms = recv_state.rooms.write().await;
                     let room = match rooms.get_mut(&recv_query.code) {
@@ -113,24 +144,35 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
                         None => {
                             println!("{} is in a room that no longer exists.", recv_query.id);
                             break;
-                        },
+                        }
                     };
                     let event = ClientEvent::from_bytes(&data);
-                    println!("({}) Received {:?} from {}", recv_query.code, event, recv_query.id);
-                    
+                    println!(
+                        "({}) Received {:?} from {}",
+                        recv_query.code, event, recv_query.id
+                    );
+
                     // We don't need to validate the player_id since its associated with the connection
                     if validate_client_event(&room.room, &event, player_index) {
-                        handle_client_event(&mut room.room, &event, &mut room.connections, player_index);
+                        handle_client_event(
+                            &mut room.room,
+                            &event,
+                            &mut room.connections,
+                            player_index,
+                        );
                     } else {
-                        println!("({}) {} sent an invalid event: {:?}", recv_query.code, recv_query.id, event);
+                        println!(
+                            "({}) {} sent an invalid event: {:?}",
+                            recv_query.code, recv_query.id, event
+                        );
                     }
-                    
+
                     // Special case for leaving the room
                     if let ClientEvent::CommonEvent(CommonClientEvent::LeaveRoom) = event {
                         room.connections[player_index] = None;
                         println!("({}) {} left the room", recv_query.code, recv_query.id);
                     }
-                },
+                }
                 Ok(Message::Close(_)) => break,
                 Ok(_) => continue,
                 Err(_) => break, // TODO: More explicit error handling
@@ -147,11 +189,15 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
     // Disconnect
     let mut rooms = state.rooms.write().await;
     if let Some(room) = rooms.get_mut(&query.code) {
-
         // If the connection wasn't removed (player leaving the room) then disconnect the player
         if let Some(Some(connection)) = room.connections.get_mut(player_index) {
             connection.sender = None;
-            room.connections.send_to_all(&mut room.room, ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected { player_index: player_index as u8 }));
+            room.connections.send_to_all(
+                &mut room.room,
+                ServerEvent::CommonEvent(CommonServerEvent::PlayerDisconnected {
+                    player_index: player_index as u8,
+                }),
+            );
             println!("({}) {} disconnected", query.code, query.id);
         }
 
@@ -164,10 +210,8 @@ async fn handle_socket(socket: WebSocket, query: QueryParams, state: AppState) {
 }
 
 fn is_room_empty(room: &ServerRoom) -> bool {
-    room.connections.iter().all(|connection| {
-        match connection {
-            Some(connection) => connection.sender.is_none(),
-            None => true,
-        }
+    room.connections.iter().all(|connection| match connection {
+        Some(connection) => connection.sender.is_none(),
+        None => true,
     })
 }
