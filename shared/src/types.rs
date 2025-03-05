@@ -11,9 +11,10 @@ pub struct ClientConnection;
 
 #[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug, Eq, Hash)]
 pub enum GameType {
-    #[default]
     Tycoon,
     Carbo,
+
+    #[default]
     Coup,
 }
 

@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::{traits, types};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq, Debug)]
 pub enum CarboRoomState {
@@ -37,23 +36,30 @@ impl traits::GameLogic for CarboRoom {
     type Room = CarboRoom;
     type Player = CarboPlayer;
 
-    fn validate_client_game_event(room: &types::Room, event: &CarboClientEvent, player_index: usize) -> bool {
+    fn validate_client_game_event(
+        room: &types::Room,
+        event: &CarboClientEvent,
+        player_index: usize,
+    ) -> bool {
         match event {
-            CarboClientEvent::StartGame => {
-                room.carbo.state == CarboRoomState::Lobby
-            },
+            CarboClientEvent::StartGame => room.carbo.state == CarboRoomState::Lobby,
             CarboClientEvent::PlayCard { card } => {
                 todo!("Validate card played");
             }
         }
     }
 
-    fn handle_client_game_event(room: &mut types::Room, event: &Self::GameClientEvent, connections: &mut impl traits::Networking, player_index: usize) {
+    fn handle_client_game_event(
+        room: &mut types::Room,
+        event: &Self::GameClientEvent,
+        connections: &mut impl traits::Networking,
+        player_index: usize,
+    ) {
         if Self::validate_client_game_event(room, event, player_index) {
             match event {
                 CarboClientEvent::StartGame => {
                     todo!("Handle game started");
-                },
+                }
                 CarboClientEvent::PlayCard { card } => {
                     todo!("Handle card played");
                 }
@@ -61,7 +67,12 @@ impl traits::GameLogic for CarboRoom {
         }
     }
 
-    fn handle_server_game_event(room: &mut types::Room, event: &CarboServerEvent, player_index: Option<usize>, is_server_side: bool) {
+    fn handle_server_game_event(
+        room: &mut types::Room,
+        event: &CarboServerEvent,
+        player_index: Option<usize>,
+        is_server_side: bool,
+    ) {
         match event {
             CarboServerEvent::GameStarted { turn, cards } => {
                 todo!("Handle game started");

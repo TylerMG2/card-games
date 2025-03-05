@@ -15,7 +15,7 @@ use web_sys::{
     wasm_bindgen::{JsCast, prelude::Closure},
 };
 
-use crate::components::{games::game::Game, join_room::JoinRoom};
+use crate::components::{game::Game, join_room::JoinRoom};
 
 #[derive(Clone, PartialEq)]
 pub enum WebsocketState {
@@ -33,13 +33,13 @@ pub struct RoomContext {
 }
 
 impl RoomContext {
-    pub fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
+    fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
         self.room.with(|room| {
             logic::validate_client_event(room, event, *room.player_index.value() as usize)
         })
     }
 
-    pub fn handle_client_event(&mut self, event: &types::ClientEvent) {
+    fn handle_client_event(&mut self, event: &types::ClientEvent) {
         self.room.update(|room| {
             logic::handle_client_event(
                 room,
@@ -176,7 +176,7 @@ pub fn Room() -> impl IntoView {
 
     view! {
         <Show
-            when=move || !in_room.get() || tx_signal.get().is_none()
+            when=move || !in_room.get() || tx_signal.read().is_none()
             fallback=move || {
                 provide_context(RoomContext {
                     room,
@@ -188,7 +188,7 @@ pub fn Room() -> impl IntoView {
             }
         >
             <Show
-                when=move || ws_state.get() == WebsocketState::Disconnected
+                when=move || ws_state.read() == WebsocketState::Disconnected
                 fallback=|| view! { <div class="loading-room">"Joining Room"</div> }
             >
                 <JoinRoom join_room=join_room />

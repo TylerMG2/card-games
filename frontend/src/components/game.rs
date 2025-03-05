@@ -1,13 +1,15 @@
+mod tycoon;
+
+use crate::components::room::RoomContext;
 use leptos::prelude::*;
 use shared::types;
-
-use crate::components::{games::tycoon::tycoon::Tycoon, room::RoomContext};
+use tycoon::Tycoon;
 
 #[component]
 pub fn Game() -> impl IntoView {
     let mut room_context = use_context::<RoomContext>().expect("RoomContext not found");
 
-    let gamemode = move || room_context.room.get().game.get();
+    let gamemode = move || room_context.room.read().game.get();
 
     // TODO: Check if it only rerenders when the game type changes as opposed to the room changing in any way
     view! {
@@ -28,7 +30,7 @@ pub fn Game() -> impl IntoView {
                 }.into_any(),
             }}
 
-            <button 
+            <button
                 class="btn-red"
                 type="submit"
                 style="width: 100%;"
