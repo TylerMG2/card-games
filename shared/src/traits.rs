@@ -1,6 +1,7 @@
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
+    helpers::*,
     logic::{self, handle_server_event},
     types::{self, MAX_PLAYERS},
 };
@@ -29,6 +30,12 @@ pub trait GameLogic {
         player_index: Option<usize>,
         is_server_side: bool,
     );
+
+    // This should only validate the requirements for the current game type
+    // things like is_lobby and is_host are generically handled.
+    fn validate_start_game(room: &types::Room, player_index: usize) -> bool;
+
+    fn handle_start_game(room: &mut types::Room, connections: &mut impl Networking);
 
     fn wrap_game_event(event: Self::GameServerEvent) -> types::ServerEvent;
 }
@@ -196,6 +203,6 @@ impl Networking for types::ClientConnection {
 
 pub trait GameSignal<T> {
     fn value(&self) -> &T;
-    fn get_mut(&mut self) -> &mut T;
+    fn value_mut(&mut self) -> &mut T;
     fn set(&mut self, value: T);
 }

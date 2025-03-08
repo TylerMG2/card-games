@@ -33,7 +33,7 @@ pub struct RoomContext {
 }
 
 impl RoomContext {
-    fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
+    pub fn validate_client_event(&self, event: &types::ClientEvent) -> bool {
         self.room.with(|room| {
             logic::validate_client_event(room, event, *room.player_index.value() as usize)
         })

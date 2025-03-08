@@ -1,7 +1,12 @@
+mod host_panel;
+mod other_player;
+mod player;
 mod tycoon;
 
 use crate::components::room::RoomContext;
+use host_panel::HostPanel;
 use leptos::prelude::*;
+use player::Player;
 use shared::types;
 use tycoon::Tycoon;
 
@@ -15,12 +20,7 @@ pub fn Game() -> impl IntoView {
     view! {
         <div>
             {move || match gamemode() {
-                types::GameType::Carbo => view! {
-                    <div>
-                        <h2>{"Carbo"}</h2>
-                        <p>{"Carbo is a game where you have to guess the number of carbs in a food item"}</p>
-                    </div>
-                }.into_any(),
+                types::GameType::Carbo => todo!("Create carbo game"),
                 types::GameType::Tycoon => view! { <Tycoon /> }.into_any(),
                 types::GameType::Coup => view! {
                     <div>
@@ -29,6 +29,10 @@ pub fn Game() -> impl IntoView {
                     </div>
                 }.into_any(),
             }}
+
+            { (0..8).map(|i| view! { <Player player_index=i /> }).collect::<Vec<_>>() }
+
+            <HostPanel />
 
             <button
                 class="btn-red"

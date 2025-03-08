@@ -80,6 +80,14 @@ impl traits::GameLogic for CarboRoom {
         }
     }
 
+    fn validate_start_game(room: &types::Room, player_index: usize) -> bool {
+        room.carbo.state == CarboRoomState::Lobby
+    }
+
+    fn handle_start_game(room: &mut types::Room, connections: &mut impl traits::Networking) {
+        todo!("Handle game started");
+    }
+
     fn wrap_game_event(event: Self::GameServerEvent) -> types::ServerEvent {
         types::ServerEvent::CarboEvent(event)
     }

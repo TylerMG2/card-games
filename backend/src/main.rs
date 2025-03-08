@@ -4,7 +4,7 @@ use axum::{
         Query, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
-    response::IntoResponse,
+    response::Response,
     routing::get,
 };
 use serde::Deserialize;
@@ -54,7 +54,7 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     query: Query<QueryParams>,
     State(state): State<AppState>,
-) -> impl IntoResponse {
+) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, query.0, state))
 }
 

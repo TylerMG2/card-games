@@ -30,7 +30,7 @@ pub fn handle_server_event(
                 CommonServerEvent::PlayerDisconnected { player_index } => {
                     if let Some(player) = room.players.get_mut(*player_index as usize) {
                         // TODO, maybe centralize player fetching so we can better log when no player is found since this should never happen in this case
-                        if let Some(player) = player.get_mut() {
+                        if let Some(player) = player.value_mut() {
                             player.disconnected.set(true);
                         }
                     }
@@ -63,7 +63,7 @@ pub fn handle_server_event(
                 }
                 CommonServerEvent::PlayerReconnected { player_index } => {
                     if let Some(player) = room.players.get_mut(*player_index as usize) {
-                        if let Some(player) = player.get_mut() {
+                        if let Some(player) = player.value_mut() {
                             player.disconnected.set(false);
                         }
                     }
@@ -77,6 +77,13 @@ pub fn handle_server_event(
                         room.player_index.set(*current_player);
                     }
                 }
+                CommonServerEvent::NameChanged { player_index, name } => {
+                    if let Some(player) = room.players.get_mut(*player_index as usize) {
+                        if let Some(player) = player.value_mut() {
+                            player.name.set(*name);
+                        }
+                    }
+                }
                 CommonServerEvent::GameChanged { game } => {
                     room.game.set(*game);
                 }
@@ -86,7 +93,7 @@ pub fn handle_server_event(
                         types::GameType::Carbo => {
                             room.carbo = carbo::CarboRoom::default();
                             room.players.iter_mut().for_each(|player| {
-                                if let Some(player) = player.get_mut() {
+                                if let Some(player) = player.value_mut() {
                                     player.carbo = carbo::CarboPlayer::default();
                                 }
                             });
@@ -94,7 +101,7 @@ pub fn handle_server_event(
                         types::GameType::Tycoon => {
                             room.tycoon = tycoon::TycoonRoom::default();
                             room.players.iter_mut().for_each(|player| {
-                                if let Some(player) = player.get_mut() {
+                                if let Some(player) = player.value_mut() {
                                     player.tycoon = tycoon::TycoonPlayer::default();
                                 }
                             });
@@ -102,7 +109,7 @@ pub fn handle_server_event(
                         types::GameType::Coup => {
                             room.coup = coup::CoupRoom::default();
                             room.players.iter_mut().for_each(|player| {
-                                if let Some(player) = player.get_mut() {
+                                if let Some(player) = player.value_mut() {
                                     player.coup = coup::CoupPlayer::default();
                                 }
                             });
@@ -129,11 +136,29 @@ pub fn validate_client_event(room: &types::Room, event: &ClientEvent, player_ind
         ClientEvent::CommonEvent(event) => {
             match event {
                 CommonClientEvent::LeaveRoom => true,
+                CommonClientEvent::ChangeName { name: _ } => true,
                 CommonClientEvent::ChangeGame { game: _ } => {
                     is_host(room, player_index) && is_lobby(room)
                 }
                 CommonClientEvent::Disconnect => true,
                 CommonClientEvent::ResetGame => is_host(room, player_index) && is_lobby(room), // TODO: reconsider when they should be able to reset
+                CommonClientEvent::StartGame => {
+                    if !is_host(room, player_index) || !is_lobby(room) {
+                        return false;
+                    }
+
+                    match room.game.value() {
+                        types::GameType::Carbo => {
+                            coup::CoupRoom::validate_start_game(room, player_index)
+                        }
+                        types::GameType::Tycoon => {
+                            tycoon::TycoonRoom::validate_start_game(room, player_index)
+                        }
+                        types::GameType::Coup => {
+                            coup::CoupRoom::validate_start_game(room, player_index)
+                        }
+                    }
+                }
             }
         }
         ClientEvent::Unknown => false,
@@ -174,6 +199,16 @@ pub fn handle_client_event(
                     player_index,
                 );
             }
+            CommonClientEvent::ChangeName { name } => {
+                connections.send_to_all_except_origin(
+                    room,
+                    ServerEvent::CommonEvent(CommonServerEvent::NameChanged {
+                        player_index: player_index as u8,
+                        name: *name,
+                    }),
+                    player_index,
+                );
+            }
             CommonClientEvent::ChangeGame { game } => {
                 connections.send_to_all_except_origin(
                     room,
@@ -197,6 +232,17 @@ pub fn handle_client_event(
                     player_index,
                 );
             }
+            CommonClientEvent::StartGame => match room.game.value() {
+                types::GameType::Carbo => {
+                    carbo::CarboRoom::handle_start_game(room, connections);
+                }
+                types::GameType::Tycoon => {
+                    tycoon::TycoonRoom::handle_start_game(room, connections);
+                }
+                types::GameType::Coup => {
+                    coup::CoupRoom::handle_start_game(room, connections);
+                }
+            },
         },
         ClientEvent::Unknown => {}
     }

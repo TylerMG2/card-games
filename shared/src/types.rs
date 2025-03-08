@@ -9,6 +9,7 @@ pub const MAX_NAME_LENGTH: usize = 20;
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ClientConnection;
 
+//TODO: Consider implementing GameLogic for this directly
 #[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug, Eq, Hash)]
 pub enum GameType {
     Tycoon,
@@ -87,6 +88,10 @@ pub enum CommonServerEvent {
     PlayerReconnected {
         player_index: u8,
     },
+    NameChanged {
+        player_index: u8,
+        name: [u8; MAX_NAME_LENGTH],
+    },
     HostChanged {
         player_index: u8,
     },
@@ -111,7 +116,9 @@ pub enum ClientEvent {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CommonClientEvent {
     LeaveRoom,
+    ChangeName { name: [u8; MAX_NAME_LENGTH] },
     ChangeGame { game: GameType },
+    StartGame,
     ResetGame,
     Disconnect,
 }
@@ -147,7 +154,7 @@ impl<T: Clone + 'static> GameSignal<T> for SignalType<T> {
         &self.value
     }
 
-    fn get_mut(&mut self) -> &mut T {
+    fn value_mut(&mut self) -> &mut T {
         &mut self.value
     }
 
